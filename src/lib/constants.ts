@@ -57,3 +57,24 @@ export const WASH_STATUS_OPTIONS: WashStatusType[] = [
   'Wash For Deliver',
   'Wash for Service'
 ];
+
+/**
+ * Sorts strings with English (A-Z / Latin / Numbers) first, and Thai (ก-ฮ) at the bottom.
+ */
+export const sortEnFirstThenTh = (a: string = '', b: string = ''): number => {
+  const strA = (a || '').trim();
+  const strB = (b || '').trim();
+
+  const aStartsWithThai = /^[\u0E00-\u0E7F]/.test(strA);
+  const bStartsWithThai = /^[\u0E00-\u0E7F]/.test(strB);
+
+  // English/Numbers first, Thai at bottom
+  if (!aStartsWithThai && bStartsWithThai) return -1;
+  if (aStartsWithThai && !bStartsWithThai) return 1;
+
+  return strA.localeCompare(strB, aStartsWithThai ? 'th' : 'en', {
+    sensitivity: 'base',
+    numeric: true
+  });
+};
+

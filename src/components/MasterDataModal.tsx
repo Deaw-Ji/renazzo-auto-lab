@@ -22,6 +22,7 @@ import {
   UserProfile, 
   UserRole 
 } from '../types';
+import { sortEnFirstThenTh } from '../lib/constants';
 
 interface MasterDataModalProps {
   isOpen: boolean;
@@ -686,7 +687,7 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
 
               {/* Brands List with Edit & Delete */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {brands.map((brand) => {
+                {[...brands].sort((a, b) => sortEnFirstThenTh(a.name, b.name)).map((brand) => {
                   const isEditing = editingBrandId === brand.id;
 
                   if (isEditing) {
@@ -707,7 +708,7 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                           rows={2}
                           value={editBrandModels}
                           onChange={(e) => setEditBrandModels(e.target.value)}
-                          placeholder="รุ่นรถ (คั่นด้วยจุลภาค)"
+                          placeholder="รุ่นรถ (คั่นด้วยจุลภาค เช่น C-Class, E-Class)"
                           className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs focus:outline-none"
                         />
                         <div className="flex justify-end gap-2">
@@ -728,6 +729,8 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                       </div>
                     );
                   }
+
+                  const sortedBrandModels = [...brand.models].sort((a, b) => sortEnFirstThenTh(a, b));
 
                   return (
                     <div
@@ -754,8 +757,8 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                         </div>
                       </div>
                       <div className="text-[11px] text-slate-500 flex flex-wrap gap-1">
-                        {brand.models.length > 0 ? (
-                          brand.models.map((m, idx) => (
+                        {sortedBrandModels.length > 0 ? (
+                          sortedBrandModels.map((m, idx) => (
                             <span key={idx} className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-700">
                               {m}
                             </span>

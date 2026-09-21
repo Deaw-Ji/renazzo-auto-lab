@@ -23,7 +23,7 @@ import {
   Employee, 
   UserProfile 
 } from '../types';
-import { STATUS_CONFIGS, WASH_STATUS_OPTIONS } from '../lib/constants';
+import { STATUS_CONFIGS, WASH_STATUS_OPTIONS, sortEnFirstThenTh } from '../lib/constants';
 
 interface RecordFormModalProps {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
   const [vinNumber, setVinNumber] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [isCustomModelInput, setIsCustomModelInput] = useState(false);
   const [color, setColor] = useState('');
   const [customColor, setCustomColor] = useState('');
   const [washStatus, setWashStatus] = useState<WashStatusType>('Detailing New Car Deliver');
@@ -74,6 +75,18 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     return lower.includes('อื่นๆ') || lower.includes('other') || lower === 'custom';
   };
 
+  // Sort brands with English (A-Z) first, and Thai at the bottom
+  const sortedBrands = React.useMemo(() => {
+    return [...brands].sort((a, b) => sortEnFirstThenTh(a.name, b.name));
+  }, [brands]);
+
+  // Find model suggestions for selected brand and sort them with English (A-Z) first, and Thai at the bottom
+  const currentBrandObj = brands.find(b => b.name === brand);
+  const sortedModels = React.useMemo(() => {
+    if (!currentBrandObj?.models) return [];
+    return [...currentBrandObj.models].sort((a, b) => sortEnFirstThenTh(a, b));
+  }, [currentBrandObj]);
+
   // Initialize or reset form only once when modal opens or initialRecord changes
   useEffect(() => {
     if (!isOpen) return;
@@ -81,7 +94,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     const activeBranches = branches.filter(b => b.isActive);
     const activeEmployees = employees.filter(e => e.isActive);
     const firstBranch = activeBranches[0]?.name || branches[0]?.name || 'สาขาสำนักงานใหญ่';
-    const firstBrand = brands[0]?.name || 'Mercedes-Benz';
+    const firstBrand = sortedBrands[0]?.name || brands[0]?.name || 'BMW';
     const firstColor = colors[0]?.name || 'ขาว (Pure White)';
     const firstStaff = activeEmployees[0]?.name || employees[0]?.name || '';
 
@@ -92,6 +105,10 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       setBrand(initialRecord.brand || firstBrand);
       setModel(initialRecord.model || '');
       
+      const recordBrandObj = brands.find(b => b.name === (initialRecord.brand || firstBrand));
+      const brandModels = recordBrandObj?.models || [];
+      setIsCustomModelInput(!!initialRecord.model && !brandModels.includes(initialRecord.model));
+
       // Match existing color with options or treat as custom
       const exactColorMatch = colors.find(c => c.name === initialRecord.color);
       if (exactColorMatch && !isOtherColorSelected(exactColorMatch.name)) {
@@ -114,6 +131,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       setVinNumber('');
       setBrand(firstBrand);
       setModel('');
+      setIsCustomModelInput(false);
       setColor(firstColor);
       setCustomColor('');
       setWashStatus('Detailing New Car Deliver');
@@ -212,10 +230,6 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  // Find model suggestions for selected brand
-  const currentBrandObj = brands.find(b => b.name === brand);
-  const modelSuggestions = currentBrandObj?.models || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
@@ -396,12 +410,14 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
                 required
                 value={brand}
                 onChange={(e) => {
-                  setBrand(e.target.value);
+                  const newBrand = e.target.value;
+                  setBrand(newBrand);
                   setModel('');
+                  setIsCustomModelInput(false);
                 }}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition-colors"
               >
-                {brands.map(b => (
+                {sortedBrands.map(b => (
                   <option key={b.id} value={b.name}>
                     {b.name}
                   </option>
@@ -410,27 +426,68 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                รุ่นรถ (Model)
-              </label>
-              <div className="relative">
-                <input
-                  id="form-input-model"
-                  type="text"
-                  placeholder="เช่น 5 Series, Cayenne, Seal"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  list="model-suggestions"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition-colors"
-                />
-                {modelSuggestions.length > 0 && (
-                  <datalist id="model-suggestions">
-                    {modelSuggestions.map(m => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  รุ่นรถ (Model)
+                </label>
+                {sortedModels.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomModelInput(!isCustomModelInput);
+                      if (isCustomModelInput && sortedModels.length > 0) {
+                        setModel(sortedModels[0]);
+                      }
+                    }}
+                    className="text-[11px] text-sky-600 hover:text-sky-800 font-medium hover:underline transition-colors"
+                  >
+                    {isCustomModelInput ? '← เลือกจากรายการ (A-Z)' : '+ พิมพ์ระบุเอง'}
+                  </button>
                 )}
               </div>
+
+              {!isCustomModelInput && sortedModels.length > 0 ? (
+                <select
+                  id="form-select-model"
+                  value={model}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomModelInput(true);
+                      setModel('');
+                    } else {
+                      setModel(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition-colors"
+                >
+                  <option value="">-- เลือกรุ่นรถ (เรียง A-Z) --</option>
+                  {sortedModels.map(m => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ พิมพ์ระบุรุ่นเอง (Custom Model)...</option>
+                </select>
+              ) : (
+                <div className="relative">
+                  <input
+                    id="form-input-model"
+                    type="text"
+                    placeholder="พิมพ์ระบุรุ่นรถ (เรียง A-Z)"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    list="model-suggestions"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition-colors"
+                  />
+                  {sortedModels.length > 0 && (
+                    <datalist id="model-suggestions">
+                      {sortedModels.map(m => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
