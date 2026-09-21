@@ -41,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canViewDashboard = isAdmin || isSupervisor;
 
   return (
     <header id="app-main-header" className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -63,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Desktop Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
-            {isAdmin && (
+            {canViewDashboard && (
               <button
                 id="nav-tab-dashboard"
                 onClick={() => setActiveTab('dashboard')}
@@ -184,7 +186,11 @@ export const Header: React.FC<HeaderProps> = ({
                     {isAdmin && <ShieldCheck className="w-3.5 h-3.5 text-sky-600 inline" />}
                   </div>
                   <span className="text-[10px] text-slate-500 font-medium">
-                    {isAdmin ? 'ผู้ดูแลระบบ (Admin)' : 'พนักงาน (Staff)'}
+                    {isAdmin
+                      ? 'ผู้ดูแลระบบ (Admin)'
+                      : isSupervisor
+                      ? 'หัวหน้างาน (Supervisor)'
+                      : 'พนักงาน (Staff)'}
                   </span>
                 </div>
               </div>
@@ -203,7 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Mobile Navigation Bar */}
         <div className="flex md:hidden items-center justify-around py-2 border-t border-slate-100">
-          {isAdmin && (
+          {canViewDashboard && (
             <button
               id="mobile-nav-dashboard"
               onClick={() => setActiveTab('dashboard')}

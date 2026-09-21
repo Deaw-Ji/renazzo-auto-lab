@@ -68,6 +68,12 @@ export const DEFAULT_ADMIN_USERS: UserProfile[] = [
     email: 'admin@premium-auto.co.th',
     displayName: 'System Administrator',
     role: 'admin',
+  },
+  {
+    uid: 'sup-demo',
+    email: 'supervisor@premium-auto.co.th',
+    displayName: 'หัวหน้างาน (Supervisor)',
+    role: 'supervisor',
   }
 ];
 

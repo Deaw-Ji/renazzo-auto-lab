@@ -78,17 +78,19 @@ export default function App() {
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => storage.getUserProfiles());
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig | null>(() => storage.getSheetConfig());
 
-  // UI Navigation & Filters - default to history for staff, dashboard for admin
+  // UI Navigation & Filters - default to history for staff, dashboard for admin & supervisor
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>(() => {
     const session = storage.getDemoSession();
-    return session?.role === 'admin' ? 'dashboard' : 'history';
+    return session?.role === 'admin' || session?.role === 'supervisor' ? 'dashboard' : 'history';
   });
 
   const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canViewDashboard = isAdmin || isSupervisor;
 
   // Automatically enforce tab permission if user role changes
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin' && activeTab === 'dashboard') {
+    if (currentUser && currentUser.role === 'staff' && activeTab === 'dashboard') {
       setActiveTab('history');
     }
   }, [currentUser, activeTab]);
@@ -625,7 +627,11 @@ export default function App() {
           setEditingRecord(null);
           setIsRecordModalOpen(true);
         }}
-        onOpenMasterData={() => setIsMasterDataOpen(true)}
+        onOpenMasterData={() => {
+          if (currentUser?.role === 'admin') {
+            setIsMasterDataOpen(true);
+          }
+        }}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
         onManualSync={handleManualFullSync}
         onLogout={handleLogout}
@@ -633,7 +639,7 @@ export default function App() {
 
       {/* Main View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {isAdmin && activeTab === 'dashboard' ? (
+        {canViewDashboard && activeTab === 'dashboard' ? (
           <DashboardView
             records={records}
             branches={branches}

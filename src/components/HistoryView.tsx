@@ -47,6 +47,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   isSyncing
 }) => {
   const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canEditRecord = isAdmin || isSupervisor;
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
 
   // Filtered records based on query, branch, month, status
@@ -293,7 +295,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     <th className="py-3.5 px-4">สาขา</th>
                     <th className="py-3.5 px-4">พนักงานผู้รับผิดชอบ</th>
                     <th className="py-3.5 px-4">หมายเหตุ</th>
-                    {isAdmin && <th className="py-3.5 px-4 text-right">จัดการ (Admin)</th>}
+                    {canEditRecord && <th className="py-3.5 px-4 text-right">จัดการ</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -369,8 +371,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           )}
                         </td>
 
-                        {/* Admin Action buttons */}
-                        {isAdmin && (
+                        {/* Action buttons (Admin & Supervisor) */}
+                        {canEditRecord && (
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -381,14 +383,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
-                              <button
-                                id={`delete-record-btn-${record.id}`}
-                                onClick={() => onDeleteRecord(record)}
-                                title="ลบรายการ (Admin)"
-                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  id={`delete-record-btn-${record.id}`}
+                                  onClick={() => onDeleteRecord(record)}
+                                  title="ลบรายการ (Admin)"
+                                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         )}
@@ -467,7 +471,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     </div>
                   )}
 
-                  {isAdmin && (
+                  {canEditRecord && (
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                       <button
                         onClick={() => onEditRecord(record)}
@@ -476,13 +480,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>แก้ไข</span>
                       </button>
-                      <button
-                        onClick={() => onDeleteRecord(record)}
-                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>ลบ</span>
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDeleteRecord(record)}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ลบ</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
