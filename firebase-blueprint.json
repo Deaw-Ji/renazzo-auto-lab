@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "WashRecord": {
+      "title": "WashRecord",
+      "description": "Car wash record for Renazzo Auto Lab",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 50 },
+        "licensePlate": { "type": "string", "maxLength": 50 },
+        "vinNumber": { "type": "string", "maxLength": 50 },
+        "brand": { "type": "string", "maxLength": 100 },
+        "model": { "type": "string", "maxLength": 100 },
+        "color": { "type": "string", "maxLength": 100 },
+        "washStatus": { "type": "string", "maxLength": 100 },
+        "branch": { "type": "string", "maxLength": 100 },
+        "staffNames": { "type": "array" },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "loggedBy": { "type": "string", "maxLength": 100 },
+        "loggedByEmail": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["date", "brand", "washStatus", "branch", "createdAt"]
+    },
+    "MasterBranch": {
+      "title": "MasterBranch",
+      "description": "Master list of company branches",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "code": { "type": "string", "maxLength": 50 },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "code", "isActive"]
+    },
+    "MasterStaff": {
+      "title": "MasterStaff",
+      "description": "Master list of company wash and detailing staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "nickname": { "type": "string", "maxLength": 50 },
+        "branchId": { "type": "string", "maxLength": 100 },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "isActive"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "Shared system configuration such as central Master Google Sheet ID",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "spreadsheetId": { "type": "string", "maxLength": 200 },
+        "spreadsheetUrl": { "type": "string", "maxLength": 500 },
+        "sheetName": { "type": "string", "maxLength": 100 },
+        "updatedBy": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["spreadsheetId"]
+    }
+  },
+  "firestore": {
+    "/records/{recordId}": {
+      "schema": "WashRecord",
+      "description": "Real-time sync collection for car wash records accessible to authenticated staff and admin"
+    },
+    "/master_branches/{branchId}": {
+      "schema": "MasterBranch",
+      "description": "Master list of branches accessible to all authenticated users"
+    },
+    "/master_staff/{staffId}": {
+      "schema": "MasterStaff",
+      "description": "Master list of staff accessible to all authenticated users"
+    },
+    "/system_config/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Shared application configuration accessible to authenticated users"
+    }
+  }
+}

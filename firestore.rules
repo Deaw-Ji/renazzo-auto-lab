@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Car Wash Records
+    match /records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(recordId);
+      allow update: if isSignedIn() && isValidId(recordId);
+      allow delete: if isSignedIn() && isValidId(recordId);
+    }
+
+    // Master Data: Branches
+    match /master_branches/{branchId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(branchId);
+    }
+
+    // Master Data: Staff
+    match /master_staff/{staffId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(staffId);
+    }
+
+    // Master Data: Services
+    match /master_services/{serviceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(serviceId);
+    }
+
+    // System Config (Shared Google Sheet ID, etc.)
+    match /system_config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(configId);
+    }
+  }
+}

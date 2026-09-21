@@ -1,11 +1,34 @@
-<div align="center">
+# Renazzo Auto Lab - Car Wash & Detailing Management System
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+ระบบบันทึกประวัติรถล้าง สถิติแยกสาขา พนักงาน และซิงค์ Google Sheets / Cloud Firestore แบบเรียลไทม์
 
-  <h1>Built with AI Studio</h2>
+## 🚗 คุณสมบัติเด่น (Features)
+- **ระบบบันทึกประวัติรถล้าง (Wash Logs)**: บันทึกทะเบียนรถ, เลขตัวถัง (VIN), ยี่ห้อ/รุ่น, สี, สาขา, พนักงานที่รับผิดชอบ, สถานะงานล้าง, และหมายเหตุ
+- **ระบบสถิติและสรุปยอด (Analytics Dashboard)**: แสดงกราฟสถิติแยกตามยี่ห้อรถ, สาขา, รายชื่อพนักงาน, กรองตามช่วงวันที่ได้
+- **Google Sheets Integration**: ซิงค์ข้อมูลอัตโนมัติเข้ากับ Master Google Sheet กลางขององค์กร
+- **Cloud Firestore Real-time Sync**: เชื่อมต่อฐานข้อมูลคลาวด์แบบเรียลไทม์ พนักงานทุกคนบันทึกและเห็นข้อมูลตรงกันทันที
+- **ระบบสิทธิ์และการยืนยันตัวตน (Authentication & RBAC)**: รองรับการเข้าสู่ระบบด้วย Google Account พร้อมแบ่งสิทธิ์ Admin และ Staff
+- **ระบบจัดการข้อมูลหลัก (Master Data Management)**: จัดการสาขา (Branches) และรายชื่อพนักงาน (Staff)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🛠️ Tech Stack
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS
+- **Animations & Icons**: Motion, Lucide React
+- **Backend & Database**: Firebase Authentication, Cloud Firestore
+- **External Integration**: Google Sheets API v4
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 📦 การติดตั้งและการรันในเครื่อง (Local Setup)
 
-</div>
+1. ติดตั้ง Dependencies:
+```bash
+npm install
+```
+
+2. รันโหมด Development:
+```bash
+npm run dev
+```
+
+3. Build สำหรับ Production:
+```bash
+npm run build
+```

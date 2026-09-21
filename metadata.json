@@ -1,0 +1,6 @@
+{
+  "name": "Renazzo Auto Lab",
+  "description": "ระบบบันทึกประวัติรถล้าง สถิติแยกสาขา พนักงาน และซิงค์ Google Sheets แบบเรียลไทม์",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
