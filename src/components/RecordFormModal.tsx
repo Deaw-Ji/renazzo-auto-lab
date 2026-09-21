@@ -74,13 +74,22 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     return lower.includes('อื่นๆ') || lower.includes('other') || lower === 'custom';
   };
 
-  // Initialize or reset form
+  // Initialize or reset form only once when modal opens or initialRecord changes
   useEffect(() => {
+    if (!isOpen) return;
+
+    const activeBranches = branches.filter(b => b.isActive);
+    const activeEmployees = employees.filter(e => e.isActive);
+    const firstBranch = activeBranches[0]?.name || branches[0]?.name || 'สาขาสำนักงานใหญ่';
+    const firstBrand = brands[0]?.name || 'Mercedes-Benz';
+    const firstColor = colors[0]?.name || 'ขาว (Pure White)';
+    const firstStaff = activeEmployees[0]?.name || employees[0]?.name || '';
+
     if (initialRecord) {
       setDate(initialRecord.date || new Date().toISOString().split('T')[0]);
       setLicensePlate(initialRecord.licensePlate || '');
       setVinNumber(initialRecord.vinNumber || '');
-      setBrand(initialRecord.brand || '');
+      setBrand(initialRecord.brand || firstBrand);
       setModel(initialRecord.model || '');
       
       // Match existing color with options or treat as custom
@@ -95,25 +104,25 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       }
 
       setWashStatus(initialRecord.washStatus || 'Detailing New Car Deliver');
-      setBranch(initialRecord.branch || '');
-      setSelectedStaff(initialRecord.staffNames || []);
+      setBranch(initialRecord.branch || firstBranch);
+      setSelectedStaff(initialRecord.staffNames && initialRecord.staffNames.length > 0 ? initialRecord.staffNames : (firstStaff ? [firstStaff] : []));
       setNotes(initialRecord.notes || '');
     } else {
       // Default new record values
       setDate(new Date().toISOString().split('T')[0]);
       setLicensePlate('');
       setVinNumber('');
-      setBrand(brands[0]?.name || 'Mercedes-Benz');
+      setBrand(firstBrand);
       setModel('');
-      setColor(colors[0]?.name || 'ขาว (Pure White)');
+      setColor(firstColor);
       setCustomColor('');
       setWashStatus('Detailing New Car Deliver');
-      setBranch(branches[0]?.name || 'สาขาสำนักงานใหญ่ (Headquarters)');
-      setSelectedStaff(employees[0]?.name ? [employees[0].name] : []);
+      setBranch(firstBranch);
+      setSelectedStaff(firstStaff ? [firstStaff] : []);
       setNotes('');
     }
     setValidationError(null);
-  }, [initialRecord, isOpen, colors, branches, brands, employees]);
+  }, [isOpen, initialRecord?.id]); // Only re-run when modal opens or editing a different record
 
   if (!isOpen) return null;
 
@@ -136,8 +145,10 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && 'preventDefault' in e) {
+      e.preventDefault();
+    }
     setValidationError(null);
 
     // Flexible Plate / VIN Validation: At least one must be provided
@@ -170,10 +181,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       return;
     }
 
-    if (!branch.trim()) {
-      setValidationError('กรุณาเลือกสาขา');
-      return;
-    }
+    const finalBranch = branch.trim() || (branches.filter(b => b.isActive)[0]?.name || branches[0]?.name || 'สาขาสำนักงานใหญ่');
 
     if (selectedStaff.length === 0) {
       setValidationError('กรุณาเลือกหรือระบุชื่อพนักงานที่รับผิดชอบอย่างน้อย 1 คน');
@@ -190,7 +198,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
         model: model.trim(),
         color: finalColor,
         washStatus,
-        branch: branch.trim(),
+        branch: finalBranch,
         staffNames: selectedStaff,
         notes: notes.trim(),
         loggedBy: currentUser?.displayName || currentUser?.email || 'User',

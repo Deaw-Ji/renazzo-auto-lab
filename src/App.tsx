@@ -490,7 +490,8 @@ export default function App() {
       }
     } else {
       // CREATE NEW RECORD
-      const newId = `CW-${recordData.date.replace(/-/g, '').substring(0, 6)}-${String(records.length + 1).padStart(3, '0')}`;
+      const uniqueSuffix = Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const newId = `CW-${recordData.date.replace(/-/g, '')}-${uniqueSuffix}`;
       const newRecord: CarWashRecord = {
         ...recordData,
         id: newId,
