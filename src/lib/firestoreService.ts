@@ -9,7 +9,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { CarWashRecord, Branch, Employee } from '../types';
+import { CarWashRecord, Branch, Employee, CarColor, CarBrand, UserProfile } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -135,7 +135,7 @@ export const seedRecordsToFirestoreIfEmpty = async (initialRecords: CarWashRecor
   }
 };
 
-// Subscribe to Master Branches
+// ================= MASTER BRANCHES =================
 export const subscribeToBranches = (
   onBranches: (branches: Branch[]) => void,
   onError?: (err: Error) => void
@@ -162,7 +162,51 @@ export const subscribeToBranches = (
   );
 };
 
-// Save Branch
+export const syncAllBranchesToFirestore = async (branches: Branch[]): Promise<void> => {
+  const path = 'master_branches';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const currentDocIds = new Set(snap.docs.map(d => d.id));
+    const newDocIds = new Set(branches.map(b => b.id));
+
+    const batch = writeBatch(db);
+    // Upsert all current branches
+    branches.forEach(branch => {
+      const docRef = doc(db, path, branch.id);
+      batch.set(docRef, branch, { merge: true });
+    });
+    // Delete any branches that were removed
+    currentDocIds.forEach(id => {
+      if (!newDocIds.has(id)) {
+        batch.delete(doc(db, path, id));
+      }
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const seedBranchesToFirestoreIfEmpty = async (initialBranches: Branch[]): Promise<boolean> => {
+  const path = 'master_branches';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty && initialBranches.length > 0) {
+      const batch = writeBatch(db);
+      initialBranches.forEach((b) => {
+        const docRef = doc(db, path, b.id);
+        batch.set(docRef, b);
+      });
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+};
+
 export const saveBranchToFirestore = async (branch: Branch): Promise<void> => {
   const path = 'master_branches';
   try {
@@ -173,7 +217,6 @@ export const saveBranchToFirestore = async (branch: Branch): Promise<void> => {
   }
 };
 
-// Delete Branch
 export const deleteBranchFromFirestore = async (branchId: string): Promise<void> => {
   const path = 'master_branches';
   try {
@@ -184,7 +227,7 @@ export const deleteBranchFromFirestore = async (branchId: string): Promise<void>
   }
 };
 
-// Subscribe to Master Staff
+// ================= MASTER STAFF =================
 export const subscribeToStaff = (
   onStaff: (staff: Employee[]) => void,
   onError?: (err: Error) => void
@@ -211,7 +254,49 @@ export const subscribeToStaff = (
   );
 };
 
-// Save Staff
+export const syncAllStaffToFirestore = async (staffList: Employee[]): Promise<void> => {
+  const path = 'master_staff';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const currentDocIds = new Set(snap.docs.map(d => d.id));
+    const newDocIds = new Set(staffList.map(s => s.id));
+
+    const batch = writeBatch(db);
+    staffList.forEach(staff => {
+      const docRef = doc(db, path, staff.id);
+      batch.set(docRef, staff, { merge: true });
+    });
+    currentDocIds.forEach(id => {
+      if (!newDocIds.has(id)) {
+        batch.delete(doc(db, path, id));
+      }
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const seedStaffToFirestoreIfEmpty = async (initialStaff: Employee[]): Promise<boolean> => {
+  const path = 'master_staff';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty && initialStaff.length > 0) {
+      const batch = writeBatch(db);
+      initialStaff.forEach((s) => {
+        const docRef = doc(db, path, s.id);
+        batch.set(docRef, s);
+      });
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+};
+
 export const saveStaffToFirestore = async (staffMember: Employee): Promise<void> => {
   const path = 'master_staff';
   try {
@@ -222,7 +307,6 @@ export const saveStaffToFirestore = async (staffMember: Employee): Promise<void>
   }
 };
 
-// Delete Staff
 export const deleteStaffFromFirestore = async (staffId: string): Promise<void> => {
   const path = 'master_staff';
   try {
@@ -233,7 +317,210 @@ export const deleteStaffFromFirestore = async (staffId: string): Promise<void> =
   }
 };
 
-// Subscribe to Shared Google Sheet Config
+// ================= MASTER COLORS =================
+export const subscribeToColors = (
+  onColors: (colors: CarColor[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe => {
+  const path = 'master_colors';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: CarColor[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as CarColor);
+      });
+      if (list.length > 0) {
+        onColors(list);
+      }
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (e: any) {
+        if (onError) onError(e);
+      }
+    }
+  );
+};
+
+export const syncAllColorsToFirestore = async (colors: CarColor[]): Promise<void> => {
+  const path = 'master_colors';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const currentDocIds = new Set(snap.docs.map(d => d.id));
+    const newDocIds = new Set(colors.map(c => c.id));
+
+    const batch = writeBatch(db);
+    colors.forEach(color => {
+      const docRef = doc(db, path, color.id);
+      batch.set(docRef, color, { merge: true });
+    });
+    currentDocIds.forEach(id => {
+      if (!newDocIds.has(id)) {
+        batch.delete(doc(db, path, id));
+      }
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const seedColorsToFirestoreIfEmpty = async (initialColors: CarColor[]): Promise<boolean> => {
+  const path = 'master_colors';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty && initialColors.length > 0) {
+      const batch = writeBatch(db);
+      initialColors.forEach((c) => {
+        const docRef = doc(db, path, c.id);
+        batch.set(docRef, c);
+      });
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+};
+
+// ================= MASTER BRANDS =================
+export const subscribeToBrands = (
+  onBrands: (brands: CarBrand[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe => {
+  const path = 'master_brands';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: CarBrand[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as CarBrand);
+      });
+      if (list.length > 0) {
+        onBrands(list);
+      }
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (e: any) {
+        if (onError) onError(e);
+      }
+    }
+  );
+};
+
+export const syncAllBrandsToFirestore = async (brands: CarBrand[]): Promise<void> => {
+  const path = 'master_brands';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const currentDocIds = new Set(snap.docs.map(d => d.id));
+    const newDocIds = new Set(brands.map(b => b.id));
+
+    const batch = writeBatch(db);
+    brands.forEach(brand => {
+      const docRef = doc(db, path, brand.id);
+      batch.set(docRef, brand, { merge: true });
+    });
+    currentDocIds.forEach(id => {
+      if (!newDocIds.has(id)) {
+        batch.delete(doc(db, path, id));
+      }
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const seedBrandsToFirestoreIfEmpty = async (initialBrands: CarBrand[]): Promise<boolean> => {
+  const path = 'master_brands';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty && initialBrands.length > 0) {
+      const batch = writeBatch(db);
+      initialBrands.forEach((b) => {
+        const docRef = doc(db, path, b.id);
+        batch.set(docRef, b);
+      });
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+};
+
+// ================= MASTER USERS / ROLES =================
+export const subscribeToUserProfiles = (
+  onUsers: (users: UserProfile[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe => {
+  const path = 'master_users';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+      });
+      if (list.length > 0) {
+        onUsers(list);
+      }
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (e: any) {
+        if (onError) onError(e);
+      }
+    }
+  );
+};
+
+export const syncAllUsersToFirestore = async (users: UserProfile[]): Promise<void> => {
+  const path = 'master_users';
+  try {
+    const batch = writeBatch(db);
+    users.forEach(user => {
+      const docId = user.uid || user.email.replace(/[@.]/g, '_');
+      const docRef = doc(db, path, docId);
+      batch.set(docRef, user, { merge: true });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const seedUsersToFirestoreIfEmpty = async (initialUsers: UserProfile[]): Promise<boolean> => {
+  const path = 'master_users';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty && initialUsers.length > 0) {
+      const batch = writeBatch(db);
+      initialUsers.forEach((u) => {
+        const docId = u.uid || u.email.replace(/[@.]/g, '_');
+        const docRef = doc(db, path, docId);
+        batch.set(docRef, u);
+      });
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+};
+
+// ================= SYSTEM CONFIG (SHARED GOOGLE SHEET) =================
 export const subscribeToSharedSheetConfig = (
   onConfig: (config: any | null) => void,
   onError?: (err: Error) => void
@@ -258,7 +545,6 @@ export const subscribeToSharedSheetConfig = (
   );
 };
 
-// Save Shared Google Sheet Config
 export const saveSharedSheetConfigToFirestore = async (sheetConfig: any): Promise<void> => {
   const path = 'system_config';
   try {

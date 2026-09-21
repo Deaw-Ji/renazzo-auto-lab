@@ -35,6 +35,24 @@ service cloud.firestore {
       allow write: if isSignedIn() && isValidId(staffId);
     }
 
+    // Master Data: Colors
+    match /master_colors/{colorId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(colorId);
+    }
+
+    // Master Data: Brands
+    match /master_brands/{brandId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(brandId);
+    }
+
+    // Master Data: User Profiles / Permissions
+    match /master_users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(userId);
+    }
+
     // Master Data: Services
     match /master_services/{serviceId} {
       allow read: if isSignedIn();

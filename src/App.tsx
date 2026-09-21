@@ -24,9 +24,20 @@ import {
   deleteRecordFromFirestore,
   seedRecordsToFirestoreIfEmpty,
   subscribeToBranches,
-  saveBranchToFirestore,
+  syncAllBranchesToFirestore,
+  seedBranchesToFirestoreIfEmpty,
   subscribeToStaff,
-  saveStaffToFirestore,
+  syncAllStaffToFirestore,
+  seedStaffToFirestoreIfEmpty,
+  subscribeToColors,
+  syncAllColorsToFirestore,
+  seedColorsToFirestoreIfEmpty,
+  subscribeToBrands,
+  syncAllBrandsToFirestore,
+  seedBrandsToFirestoreIfEmpty,
+  subscribeToUserProfiles,
+  syncAllUsersToFirestore,
+  seedUsersToFirestoreIfEmpty,
   subscribeToSharedSheetConfig,
   saveSharedSheetConfigToFirestore
 } from './lib/firestoreService';
@@ -193,8 +204,13 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // 1. Seed initial data to Firestore if collection is empty
-    seedRecordsToFirestoreIfEmpty(records).catch((e) => console.warn('Seed notice:', e));
+    // 1. Seed initial data to Firestore if collections are empty
+    seedRecordsToFirestoreIfEmpty(records).catch((e) => console.warn('Seed records notice:', e));
+    seedBranchesToFirestoreIfEmpty(branches).catch((e) => console.warn('Seed branches notice:', e));
+    seedStaffToFirestoreIfEmpty(employees).catch((e) => console.warn('Seed staff notice:', e));
+    seedColorsToFirestoreIfEmpty(colors).catch((e) => console.warn('Seed colors notice:', e));
+    seedBrandsToFirestoreIfEmpty(brands).catch((e) => console.warn('Seed brands notice:', e));
+    seedUsersToFirestoreIfEmpty(userProfiles).catch((e) => console.warn('Seed users notice:', e));
 
     // 2. Subscribe to real-time records
     const unsubRecords = subscribeToRecords(
@@ -226,7 +242,37 @@ export default function App() {
       (err) => console.warn('Firestore staff sync notice:', err)
     );
 
-    // 5. Subscribe to shared central Google Sheet config
+    // 5. Subscribe to real-time colors
+    const unsubColors = subscribeToColors(
+      (liveColors) => {
+        if (liveColors && liveColors.length > 0) {
+          setColors(liveColors);
+        }
+      },
+      (err) => console.warn('Firestore colors sync notice:', err)
+    );
+
+    // 6. Subscribe to real-time brands
+    const unsubBrands = subscribeToBrands(
+      (liveBrands) => {
+        if (liveBrands && liveBrands.length > 0) {
+          setBrands(liveBrands);
+        }
+      },
+      (err) => console.warn('Firestore brands sync notice:', err)
+    );
+
+    // 7. Subscribe to real-time users
+    const unsubUsers = subscribeToUserProfiles(
+      (liveUsers) => {
+        if (liveUsers && liveUsers.length > 0) {
+          setUserProfiles(liveUsers);
+        }
+      },
+      (err) => console.warn('Firestore users sync notice:', err)
+    );
+
+    // 8. Subscribe to shared central Google Sheet config
     const unsubSheetConfig = subscribeToSharedSheetConfig(
       (liveSheetConfig) => {
         if (liveSheetConfig && liveSheetConfig.spreadsheetId) {
@@ -247,6 +293,9 @@ export default function App() {
       unsubRecords();
       unsubBranches();
       unsubStaff();
+      unsubColors();
+      unsubBrands();
+      unsubUsers();
       unsubSheetConfig();
     };
   }, [currentUser]);
@@ -507,12 +556,27 @@ export default function App() {
   // Handle Master Data updates with Firestore sync
   const handleUpdateBranches = (newBranches: Branch[]) => {
     setBranches(newBranches);
-    newBranches.forEach(b => saveBranchToFirestore(b).catch(console.warn));
+    syncAllBranchesToFirestore(newBranches).catch(console.warn);
   };
 
   const handleUpdateEmployees = (newEmployees: Employee[]) => {
     setEmployees(newEmployees);
-    newEmployees.forEach(e => saveStaffToFirestore(e).catch(console.warn));
+    syncAllStaffToFirestore(newEmployees).catch(console.warn);
+  };
+
+  const handleUpdateColors = (newColors: CarColor[]) => {
+    setColors(newColors);
+    syncAllColorsToFirestore(newColors).catch(console.warn);
+  };
+
+  const handleUpdateBrands = (newBrands: CarBrand[]) => {
+    setBrands(newBrands);
+    syncAllBrandsToFirestore(newBrands).catch(console.warn);
+  };
+
+  const handleUpdateUserProfiles = (newUsers: UserProfile[]) => {
+    setUserProfiles(newUsers);
+    syncAllUsersToFirestore(newUsers).catch(console.warn);
   };
 
   // If user is not logged in, display the Login Screen
@@ -640,11 +704,11 @@ export default function App() {
           brands={brands}
           employees={employees}
           userProfiles={userProfiles}
-          onUpdateColors={setColors}
+          onUpdateColors={handleUpdateColors}
           onUpdateBranches={handleUpdateBranches}
-          onUpdateBrands={setBrands}
+          onUpdateBrands={handleUpdateBrands}
           onUpdateEmployees={handleUpdateEmployees}
-          onUpdateUserProfiles={setUserProfiles}
+          onUpdateUserProfiles={handleUpdateUserProfiles}
         />
       )}
 
