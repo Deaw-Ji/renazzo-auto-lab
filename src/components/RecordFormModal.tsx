@@ -64,8 +64,6 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
 
-  // Quick staff add state
-  const [customStaffInput, setCustomStaffInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -79,6 +77,23 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
   const sortedBrands = React.useMemo(() => {
     return [...brands].sort((a, b) => sortEnFirstThenTh(a.name, b.name));
   }, [brands]);
+
+  // Sort colors with standard colors (A-Z / Thai) first, and 'อื่นๆ (ระบุสีเพิ่มเติม / Custom)' GUARANTEED at the very bottom
+  const sortedColors = React.useMemo(() => {
+    const regularColors = colors.filter(c => !isOtherColorSelected(c.name));
+    regularColors.sort((a, b) => sortEnFirstThenTh(a.name, b.name));
+
+    const otherFound = colors.find(c => isOtherColorSelected(c.name));
+    const otherOption: CarColor = otherFound
+      ? { ...otherFound, name: otherFound.name.includes('ระบุสี') ? otherFound.name : 'อื่นๆ (ระบุสีเพิ่มเติม / Custom)' }
+      : {
+          id: 'custom-other-color',
+          name: 'อื่นๆ (ระบุสีเพิ่มเติม / Custom)',
+          hexCode: '#94A3B8'
+        };
+
+    return [...regularColors, otherOption];
+  }, [colors]);
 
   // Find model suggestions for selected brand and sort them with English (A-Z) first, and Thai at the bottom
   const currentBrandObj = brands.find(b => b.name === brand);
@@ -95,7 +110,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     const activeEmployees = employees.filter(e => e.isActive);
     const firstBranch = activeBranches[0]?.name || branches[0]?.name || 'สาขาสำนักงานใหญ่';
     const firstBrand = sortedBrands[0]?.name || brands[0]?.name || 'BMW';
-    const firstColor = colors[0]?.name || 'ขาว (Pure White)';
+    const firstColor = sortedColors[0]?.name || 'ขาว (Pure White)';
     const firstStaff = activeEmployees[0]?.name || employees[0]?.name || '';
 
     if (initialRecord) {
@@ -110,12 +125,12 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
       setIsCustomModelInput(!!initialRecord.model && !brandModels.includes(initialRecord.model));
 
       // Match existing color with options or treat as custom
-      const exactColorMatch = colors.find(c => c.name === initialRecord.color);
+      const exactColorMatch = sortedColors.find(c => c.name.toLowerCase() === (initialRecord.color || '').toLowerCase());
       if (exactColorMatch && !isOtherColorSelected(exactColorMatch.name)) {
-        setColor(initialRecord.color);
+        setColor(exactColorMatch.name);
         setCustomColor('');
       } else {
-        const otherOpt = colors.find(c => isOtherColorSelected(c.name))?.name || colors[colors.length - 1]?.name || 'อื่นๆ (Custom / Other)';
+        const otherOpt = sortedColors.find(c => isOtherColorSelected(c.name))?.name || 'อื่นๆ (ระบุสีเพิ่มเติม / Custom)';
         setColor(otherOpt);
         setCustomColor(initialRecord.color && !isOtherColorSelected(initialRecord.color) ? initialRecord.color : '');
       }
@@ -151,16 +166,6 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
         ? prev.filter(s => s !== staffName)
         : [...prev, staffName]
     );
-  };
-
-  const handleAddCustomStaff = (e: React.KeyboardEvent | React.MouseEvent) => {
-    if ('key' in e && e.key !== 'Enter') return;
-    e.preventDefault();
-    const trimmed = customStaffInput.trim();
-    if (trimmed && !selectedStaff.includes(trimmed)) {
-      setSelectedStaff(prev => [...prev, trimmed]);
-      setCustomStaffInput('');
-    }
   };
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
@@ -520,7 +525,7 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
                 }}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition-colors"
               >
-                {colors.map(c => (
+                {sortedColors.map(c => (
                   <option key={c.id} value={c.name}>
                     {c.name}
                   </option>
@@ -529,19 +534,23 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
 
               {/* Custom Color Input Field when Other is selected */}
               {isOtherColorSelected(color) && (
-                <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="mt-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200/90 animate-in fade-in slide-in-from-top-1 duration-150 space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-amber-900 flex items-center justify-between">
+                    <span>ระบุสีรถเพิ่มเติมสำหรับคันนี้ <span className="text-rose-500">*</span></span>
+                    <span className="text-[10px] font-normal text-amber-700">เฉพาะคันนี้</span>
+                  </label>
                   <input
                     id="form-input-custom-color"
                     type="text"
                     required
-                    placeholder="พิมพ์ระบุชื่อสี เช่น ชมพูพาสเทล, ทูโทน ดำ-แดง..."
+                    placeholder="พิมพ์ระบุชื่อสี เช่น เทาด้าน Nardo Grey, บรอนซ์ทอง, ชมพูพาสเทล..."
                     value={customColor}
                     onChange={(e) => setCustomColor(e.target.value)}
-                    className="w-full px-3 py-2 bg-amber-50/60 border border-amber-300 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none transition-all shadow-xs"
+                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none transition-all shadow-2xs"
                     autoFocus
                   />
-                  <p className="text-[10px] text-amber-700 mt-1">
-                    *กรุณาระบุชื่อสีรถที่ต้องการบันทึก
+                  <p className="text-[10px] text-amber-700">
+                    *ระบบจะบันทึกสีนี้ลงในประวัติรถคันนี้และซิงค์ลง Google Sheet ทันที
                   </p>
                 </div>
               )}
@@ -562,26 +571,32 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
 
             {/* Quick staff picker pills */}
             <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 rounded-2xl border border-slate-200/80 min-h-[50px] items-center">
-              {employees.filter(e => e.isActive).map((emp) => {
-                const isSelected = selectedStaff.includes(emp.name);
-                return (
-                  <button
-                    key={emp.id}
-                    type="button"
-                    onClick={() => toggleStaff(emp.name)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100/80'
-                    }`}
-                  >
-                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                    <span>{emp.name} {emp.nickname ? `(${emp.nickname})` : ''}</span>
-                  </button>
-                );
-              })}
+              {employees.filter(e => e.isActive).length === 0 ? (
+                <div className="text-xs text-amber-700 p-2 italic">
+                  ยังไม่มีรายชื่อพนักงานที่เปิดใช้งานในระบบ กรุณาให้ Admin เพิ่มพนักงานในเมนู "จัดการข้อมูลหลัก (Master Data)"
+                </div>
+              ) : (
+                employees.filter(e => e.isActive).map((emp) => {
+                  const isSelected = selectedStaff.includes(emp.name);
+                  return (
+                    <button
+                      key={emp.id}
+                      type="button"
+                      onClick={() => toggleStaff(emp.name)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      <span>{emp.name} {emp.nickname ? `(${emp.nickname})` : ''}</span>
+                    </button>
+                  );
+                })
+              )}
 
-              {/* Display any custom staff not in employee master */}
+              {/* Display any past staff already attached when editing */}
               {selectedStaff
                 .filter(name => !employees.some(e => e.name === name))
                 .map((customName) => (
@@ -601,26 +616,9 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
                   </span>
                 ))}
             </div>
-
-            {/* Add custom staff input */}
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="หรือพิมพ์ชื่อพนักงานเพิ่มเติมที่นี่..."
-                value={customStaffInput}
-                onChange={(e) => setCustomStaffInput(e.target.value)}
-                onKeyDown={handleAddCustomStaff}
-                className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddCustomStaff}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>เพิ่ม</span>
-              </button>
-            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              * รายชื่อพนักงานจะถูกจัดการและเพิ่มโดย Admin ผ่านเมนู <strong>"จัดการข้อมูลหลัก (Master Data)"</strong> เท่านั้น
+            </p>
           </div>
 
           {/* Row 6: Notes */}

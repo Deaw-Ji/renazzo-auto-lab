@@ -2,67 +2,49 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
 
     // Car Wash Records
     match /records/{recordId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(recordId);
-      allow update: if isSignedIn() && isValidId(recordId);
-      allow delete: if isSignedIn() && isValidId(recordId);
+      allow read, write: if true;
     }
 
     // Master Data: Branches
     match /master_branches/{branchId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(branchId);
+      allow read, write: if true;
     }
 
     // Master Data: Staff
     match /master_staff/{staffId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(staffId);
+      allow read, write: if true;
     }
 
     // Master Data: Colors
     match /master_colors/{colorId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(colorId);
+      allow read, write: if true;
     }
 
     // Master Data: Brands
     match /master_brands/{brandId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(brandId);
+      allow read, write: if true;
     }
 
     // Master Data: User Profiles / Permissions
     match /master_users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(userId);
+      allow read, write: if true;
     }
 
     // Master Data: Services
     match /master_services/{serviceId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(serviceId);
+      allow read, write: if true;
     }
 
     // System Config (Shared Google Sheet ID, etc.)
     match /system_config/{configId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(configId);
+      allow read, write: if true;
     }
   }
 }
+

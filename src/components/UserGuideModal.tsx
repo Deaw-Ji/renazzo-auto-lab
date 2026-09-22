@@ -12,8 +12,12 @@ import {
   Layers,
   ArrowRight,
   Smartphone,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Car,
+  Wrench,
+  Sparkle
 } from 'lucide-react';
+import { RenazzoLogo } from './RenazzoLogo';
 
 interface UserGuideModalProps {
   isOpen: boolean;
@@ -26,7 +30,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
   onClose,
   userRole
 }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'login' | 'record' | 'status' | 'search' | 'faq'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'login' | 'record' | 'purpose' | 'search' | 'faq'>('all');
 
   if (!isOpen) return null;
 
@@ -43,20 +47,18 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
         className="bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Modal Header */}
-        <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-sky-50 via-teal-50/40 to-slate-50 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-xs shadow-sky-500/20">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span>คู่มือการใช้งานระบบ Renazzo Auto Lab</span>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 hidden sm:inline-block">
+        <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-amber-50/50 via-sky-50/40 to-slate-50 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-4">
+            <RenazzoLogo size="sm" />
+            <div className="hidden sm:block border-l border-slate-200 pl-3">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>คู่มือการใช้งานระบบบันทึกประวัติรถล้าง</span>
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
                   สำหรับพนักงาน & ทีมงาน
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                ขั้นตอนการเข้าสู่ระบบ บันทึกข้อมูลรถล้าง ตรวจสอบสถานะ และค้นหาประวัติ
+              <p className="text-xs text-slate-500">
+                ขั้นตอนการเข้าสู่ระบบ บันทึกข้อมูลรถล้าง วัตถุประสงค์งาน และการค้นหา
               </p>
             </div>
           </div>
@@ -64,7 +66,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
           <button
             id="user-guide-close-btn"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -74,9 +76,9 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
         <div className="px-5 sm:px-8 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 text-xs font-semibold">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               activeCategory === 'all'
-                ? 'bg-sky-600 text-white shadow-xs'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
             }`}
           >
@@ -84,7 +86,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
           </button>
           <button
             onClick={() => setActiveCategory('login')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
               activeCategory === 'login'
                 ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
@@ -95,7 +97,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
           </button>
           <button
             onClick={() => setActiveCategory('record')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
               activeCategory === 'record'
                 ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
@@ -105,19 +107,19 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
             <span>2. บันทึกรถล้าง</span>
           </button>
           <button
-            onClick={() => setActiveCategory('status')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
-              activeCategory === 'status'
-                ? 'bg-sky-600 text-white shadow-xs'
+            onClick={() => setActiveCategory('purpose')}
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+              activeCategory === 'purpose'
+                ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>3. สถานะงาน</span>
+            <Sparkle className="w-3.5 h-3.5" />
+            <span>3. วัตถุประสงค์การล้าง (3 แบบ)</span>
           </button>
           <button
             onClick={() => setActiveCategory('search')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
               activeCategory === 'search'
                 ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
@@ -128,7 +130,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
           </button>
           <button
             onClick={() => setActiveCategory('faq')}
-            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
               activeCategory === 'faq'
                 ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/70'
@@ -157,7 +159,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
                     <span>บัญชีที่ใช้เข้าสู่ระบบ</span>
                   </div>
                   <p className="text-slate-600 leading-relaxed">
-                    พนักงานสามารถกดปุ่ม <strong>"เข้าสู่ระบบด้วย Google"</strong> โดยใช้ <strong>Google Account (Gmail ส่วนตัว หรือ อีเมลองค์กร)</strong> ได้อย่างสะดวก ไม่จำเป็นต้องจำรหัสผ่านแยก
+                    พนักงานสามารถกดปุ่ม <strong>"เข้าสู่ระบบด้วย Google Account"</strong> โดยใช้ <strong>Google Account ทั่วไป (Gmail ส่วนตัว หรือ อีเมลองค์กร)</strong> ได้ทันที ไม่จำเป็นต้องจำรหัสผ่านแยก
                   </p>
                 </div>
 
@@ -167,7 +169,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
                     <span>การอนุมัติสิทธิ์ครั้งแรก (สำหรับพนักงานใหม่)</span>
                   </div>
                   <p className="text-amber-900 leading-relaxed">
-                    เมื่อเข้าสู่ระบบครั้งแรก จะได้รับสิทธิ์ <strong>"ผู้เข้าชม (Viewer)"</strong> เพื่อความปลอดภัย ให้แจ้งอีเมลของคุณแก่ <strong>ผู้ดูแลระบบ (Admin)</strong> เพื่อทำการปรับสิทธิ์เป็น <strong>"พนักงานบันทึกข้อมูล (Staff)"</strong> จึงจะสามารถกดเพิ่มรายการรถล้างได้
+                    เมื่อเข้าสู่ระบบครั้งแรก บัญชีจะได้รับสถานะ <strong>"ผู้เข้าชม (Viewer)"</strong> เพื่อความปลอดภัย ให้แจ้งอีเมลของคุณแก่ <strong>ผู้ดูแลระบบ (Admin)</strong> เพื่อทำการปรับสิทธิ์เป็น <strong>"พนักงานบันทึกข้อมูล (Staff)"</strong> จึงจะเริ่มบันทึกรายการรถล้างได้
                   </p>
                 </div>
               </div>
@@ -175,7 +177,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  <strong>ระดับสิทธิ์ในระบบ:</strong> Staff (บันทึกข้อมูลและดูประวัติ) | Supervisor (ดู Dashboard และสถิติภาพรวม) | Admin (จัดการข้อมูลและสิทธิ์ผู้ใช้)
+                  <strong>ระดับสิทธิ์ในระบบ:</strong> Staff (บันทึกข้อมูลและดูประวัติ) | Supervisor (ดู Dashboard และแก้ไขข้อมูล) | Admin (จัดการข้อมูลพื้นฐานและสิทธิ์ผู้ใช้)
                 </span>
               </div>
             </div>
@@ -202,7 +204,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
                   <ul className="text-slate-600 space-y-1 leading-relaxed text-xs">
                     <li>• <strong>ทะเบียนรถ:</strong> ใส่เลขทะเบียน เช่น <em>1กข 8888 กทม.</em></li>
                     <li>• <strong>เลขตัวถัง (VIN):</strong> สำหรับรถสต็อกที่ยังไม่มีป้ายทะเบียน</li>
-                    <li>• <strong>ยี่ห้อ & รุ่น:</strong> เลือกจากรายการหรือพิมพ์เอง</li>
+                    <li>• <strong>ยี่ห้อ & รุ่น:</strong> เลือกจากรายการที่ระบบเตรียมไว้</li>
                   </ul>
                 </div>
 
@@ -212,7 +214,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
                     <span>สีตัวถัง & ประเภทรถ</span>
                   </div>
                   <ul className="text-slate-600 space-y-1 leading-relaxed text-xs">
-                    <li>• <strong>เฉดสีรถ:</strong> กดเลือกพาเลทสีที่ระบบเตรียมไว้ให้</li>
+                    <li>• <strong>เฉดสีรถ:</strong> กดเลือกพาเลทสีที่ตรงกับตัวรถ</li>
                     <li>• <strong>รถลูกค้า:</strong> กรอกชื่อลูกค้าและเบอร์โทร</li>
                     <li>• <strong>รถสต็อก:</strong> เลือกหมวดรถโชว์รูม/สต็อกส่งมอบ</li>
                   </ul>
@@ -226,7 +228,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
                   <ul className="text-slate-600 space-y-1 leading-relaxed text-xs">
                     <li>• <strong>สาขา:</strong> เลือกสาขาที่นำรถเข้าล้าง</li>
                     <li>• <strong>ผู้ล้าง/ผู้รับผิดชอบ:</strong> เลือกลูกทีมที่ทำการล้าง</li>
-                    <li>• <strong>หมายเหตุเพิ่มเติม:</strong> ระบุจุดที่ต้องระวังเป็นพิเศษ</li>
+                    <li>• <strong>หมายเหตุ:</strong> จุดที่ต้องระวังเป็นพิเศษ</li>
                   </ul>
                 </div>
               </div>
@@ -240,52 +242,64 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
             </div>
           )}
 
-          {/* Section 3: Statuses & Workflow */}
-          {(activeCategory === 'all' || activeCategory === 'status') && (
-            <div id="guide-section-status" className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-              <div className="flex items-center gap-2.5 text-sky-900 font-bold text-base">
-                <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center text-xs">3</span>
-                <h4>สถานะงานและการติดตามขั้นตอน (Workflow Status)</h4>
+          {/* Section 3: Wash Purposes (Correct 3 Purposes) */}
+          {(activeCategory === 'all' || activeCategory === 'purpose') && (
+            <div id="guide-section-purpose" className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5 text-amber-900 font-bold text-base">
+                <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-xs">3</span>
+                <h4>วัตถุประสงค์การล้างรถ (Wash Purposes - 3 ประเภท)</h4>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
-                  <div className="font-bold text-amber-900 flex items-center gap-1.5 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span>1. รอดำเนินการ (Pending)</span>
+              <p className="text-xs sm:text-sm text-slate-600">
+                เมื่อบันทึกข้อมูล ให้เลือกวัตถุประสงค์ที่ตรงกับการนำรถเข้าล้างของคันนั้นๆ เพื่อการจัดสรรงานและสรุปสถิติที่แม่นยำ:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+                {/* 1. Detailing New Car Deliver */}
+                <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200/80 space-y-2">
+                  <div className="flex items-center gap-2 text-purple-900 font-bold text-sm">
+                    <span className="w-6 h-6 rounded-lg bg-purple-200/80 text-purple-900 flex items-center justify-center text-xs font-bold shrink-0">
+                      1
+                    </span>
+                    <span>Detailing New Car Deliver</span>
                   </div>
-                  <p className="text-amber-800">
-                    รถรับเข้าศูนย์ รอคิวเตรียมเข้าสู่ขั้นตอนการล้าง
+                  <div className="text-xs font-semibold text-purple-800 bg-purple-100/60 px-2 py-0.5 rounded-md inline-block">
+                    (เก็บงานรถใหม่)
+                  </div>
+                  <p className="text-purple-950 text-xs leading-relaxed">
+                    สำหรับรถใหม่ป้ายแดง หรือรถสต็อกโชว์รูมที่ต้องเก็บรายละเอียดงานผิวสี ลูบดินน้ำมัน ขัดเงา และเคลือบสีพิเศษเตรียมพร้อมสำหรับการส่งมอบแก่ลูกค้า
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200">
-                  <div className="font-bold text-sky-900 flex items-center gap-1.5 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-                    <span>2. กำลังล้าง (In Progress)</span>
+                {/* 2. Wash For Deliver */}
+                <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-2">
+                  <div className="flex items-center gap-2 text-sky-900 font-bold text-sm">
+                    <span className="w-6 h-6 rounded-lg bg-sky-200/80 text-sky-900 flex items-center justify-center text-xs font-bold shrink-0">
+                      2
+                    </span>
+                    <span>Wash For Deliver</span>
                   </div>
-                  <p className="text-sky-800">
-                    ช่างกำลังดำเนินการล้าง ดูดฝุ่น หรือเคลือบสี
+                  <div className="text-xs font-semibold text-sky-800 bg-sky-100/60 px-2 py-0.5 rounded-md inline-block">
+                    (ล้างทำความสะอาดเตรียมส่งมอบ)
+                  </div>
+                  <p className="text-sky-950 text-xs leading-relaxed">
+                    ล้างทำความสะอาดทั่วไปภายนอก ดูดฝุ่น เช็ดกระจก และเคลือบยาง สำหรับรถที่มีกำหนดส่งมอบให้ลูกค้าในวันนั้นๆ เพื่อความเรียบร้อยสวยงาม
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                  <div className="font-bold text-emerald-900 flex items-center gap-1.5 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>3. ล้างเสร็จสิ้น (Completed)</span>
+                {/* 3. Wash for Service */}
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-200/80 text-emerald-900 flex items-center justify-center text-xs font-bold shrink-0">
+                      3
+                    </span>
+                    <span>Wash for Service</span>
                   </div>
-                  <p className="text-emerald-800">
-                    ล้างทำความสะอาดเสร็จสมบูรณ์ รอส่งมอบ
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-purple-50 border border-purple-200">
-                  <div className="font-bold text-purple-900 flex items-center gap-1.5 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    <span>4. ส่งมอบแล้ว (Delivered)</span>
+                  <div className="text-xs font-semibold text-emerald-800 bg-emerald-100/60 px-2 py-0.5 rounded-md inline-block">
+                    (ล้างเข้าบริการศูนย์)
                   </div>
-                  <p className="text-purple-800">
-                    ส่งมอบรถคืนลูกค้าหรือส่งเข้าฝ่ายขายเรียบร้อย
+                  <p className="text-emerald-950 text-xs leading-relaxed">
+                    รถของลูกค้าที่นำเข้ามารับบริการตรวจเช็คระยะ, ซ่อมบำรุง, หรือเปลี่ยนถ่ายของเหลวที่ศูนย์บริการ และนำมาล้างทำความสะอาดก่อนส่งมอบรถคืนลูกค้า
                   </p>
                 </div>
               </div>
@@ -368,12 +382,12 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({
         {/* Modal Footer */}
         <div className="px-5 sm:px-8 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500">
-            ระบบบันทึกข้อมูลรถล้าง Renazzo Auto Lab
+            ระบบบันทึกข้อมูลประวัติรถล้าง Renazzo Auto Lab
           </div>
 
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors"
+            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             เข้าใจแล้ว / ปิดหน้าต่าง
           </button>

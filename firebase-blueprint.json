@@ -48,6 +48,42 @@
       },
       "required": ["name", "isActive"]
     },
+    "MasterColor": {
+      "title": "MasterColor",
+      "description": "Master list of car colors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "hexCode": { "type": "string", "maxLength": 50 },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["name", "hexCode"]
+    },
+    "MasterBrand": {
+      "title": "MasterBrand",
+      "description": "Master list of car brands and models",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "models": { "type": "array" }
+      },
+      "required": ["name"]
+    },
+    "MasterUser": {
+      "title": "MasterUser",
+      "description": "Master list of registered user profiles and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 100 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["email", "role"]
+    },
     "SystemConfig": {
       "title": "SystemConfig",
       "description": "Shared system configuration such as central Master Google Sheet ID",
@@ -66,19 +102,31 @@
   "firestore": {
     "/records/{recordId}": {
       "schema": "WashRecord",
-      "description": "Real-time sync collection for car wash records accessible to authenticated staff and admin"
+      "description": "Real-time sync collection for car wash records"
     },
     "/master_branches/{branchId}": {
       "schema": "MasterBranch",
-      "description": "Master list of branches accessible to all authenticated users"
+      "description": "Master list of branches"
     },
     "/master_staff/{staffId}": {
       "schema": "MasterStaff",
-      "description": "Master list of staff accessible to all authenticated users"
+      "description": "Master list of staff"
+    },
+    "/master_colors/{colorId}": {
+      "schema": "MasterColor",
+      "description": "Master list of colors"
+    },
+    "/master_brands/{brandId}": {
+      "schema": "MasterBrand",
+      "description": "Master list of brands"
+    },
+    "/master_users/{userId}": {
+      "schema": "MasterUser",
+      "description": "Master list of users"
     },
     "/system_config/{configId}": {
       "schema": "SystemConfig",
-      "description": "Shared application configuration accessible to authenticated users"
+      "description": "Shared application configuration"
     }
   }
 }

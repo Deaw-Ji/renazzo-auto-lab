@@ -149,27 +149,27 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 href={onOpenSheetLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition-colors"
+                className="hidden sm:flex px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 items-center gap-1.5 transition-colors whitespace-nowrap"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span className="hidden sm:inline">เปิด Google Sheet</span>
-                <ExternalLink className="w-3 h-3" />
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>เปิด Google Sheet</span>
+                <ExternalLink className="w-3 h-3 shrink-0" />
               </a>
             )}
 
             <button
               onClick={handleExportCSV}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer"
             >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span className="hidden sm:inline">ส่งออก CSV</span>
+              <Download className="w-4 h-4 text-slate-600 shrink-0" />
+              <span>ส่งออก CSV</span>
             </button>
 
             {canAddRecord && (
               <button
                 id="history-add-record-btn"
                 onClick={onOpenNewRecord}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 active:scale-98 text-white flex items-center gap-1.5 shadow-xs transition-colors"
+                className="hidden sm:flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 active:scale-98 text-white items-center gap-1.5 shadow-xs transition-colors whitespace-nowrap cursor-pointer"
               >
                 <span>+ เพิ่มรถล้าง</span>
               </button>

@@ -355,7 +355,15 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      console.error('Google Sign in error:', err);
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.code === 'auth/popup-blocked'
+      ) {
+        // User closed or dismissed popup intentionally, no error needed
+        return;
+      }
+      console.warn('Google Sign in warning:', err);
       setAuthError('ไม่สามารถเข้าสู่ระบบด้วย Google ได้: ' + (err.message || 'โปรดลองอีกครั้ง'));
     } finally {
       setIsAuthLoading(false);

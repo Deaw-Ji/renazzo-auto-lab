@@ -1,6 +1,7 @@
 import React from 'react';
-import { Sparkles, FileSpreadsheet, Lock } from 'lucide-react';
+import { FileSpreadsheet, Lock } from 'lucide-react';
 import { UserProfile } from '../types';
+import { RenazzoLogo } from './RenazzoLogo';
 
 interface LoginScreenProps {
   onGoogleSignIn: () => Promise<void>;
@@ -18,16 +19,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-sky-50/40 to-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
         {/* App Logo & Header */}
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/20 mb-4">
-            <Sparkles className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Renazzo Auto Lab
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            ระบบบันทึกประวัติรถล้าง
-          </p>
+        <div className="flex flex-col items-center justify-center">
+          <RenazzoLogo 
+            size="xl" 
+            align="center" 
+            showSubtitle={true}
+            subtitleText="ระบบบันทึกประวัติรถล้าง" 
+          />
         </div>
 
         <div className="mt-8 bg-white py-8 px-6 shadow-sm border border-slate-200/80 rounded-3xl sm:px-10">
