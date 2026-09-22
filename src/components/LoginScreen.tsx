@@ -56,9 +56,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <span>{isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วย Google Account'}</span>
             </button>
 
-            <div className="flex items-center gap-2 py-1 text-center justify-center text-xs text-slate-500">
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>เชื่อมต่อและบันทึกลง Google Sheet แบบเรียลไทม์</span>
+            <div className="text-center space-y-1 py-1">
+              <div className="flex items-center gap-2 justify-center text-xs text-slate-600 font-medium">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>ซิงค์ข้อมูลกับ Google Sheet กลางอัตโนมัติ</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                (สามารถใช้บัญชี Gmail ทั่วไป หรือ Google Account องค์กร เข้าสู่ระบบได้)
+              </p>
             </div>
           </div>
 

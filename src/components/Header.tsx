@@ -11,7 +11,9 @@ import {
   RefreshCw, 
   ShieldCheck, 
   User as UserIcon,
-  ExternalLink
+  ExternalLink,
+  HelpCircle,
+  BookOpen
 } from 'lucide-react';
 import { UserProfile, GoogleSheetConfig } from '../types';
 
@@ -24,6 +26,7 @@ interface HeaderProps {
   onOpenNewRecord: () => void;
   onOpenMasterData: () => void;
   onOpenSheetSettings: () => void;
+  onOpenUserGuide: () => void;
   onManualSync: () => void;
   onLogout: () => void;
 }
@@ -37,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewRecord,
   onOpenMasterData,
   onOpenSheetSettings,
+  onOpenUserGuide,
   onManualSync,
   onLogout,
 }) => {
@@ -98,6 +102,18 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Action Section */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* User Guide Button */}
+            <button
+              id="header-user-guide-btn"
+              onClick={onOpenUserGuide}
+              title="คู่มือการใช้งานระบบสำหรับพนักงาน"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-sky-800 bg-sky-50 hover:bg-sky-100/80 rounded-xl transition-colors border border-sky-200/80 shadow-2xs"
+            >
+              <HelpCircle className="w-4 h-4 text-sky-600 shrink-0" />
+              <span className="hidden lg:inline font-semibold">คู่มือการใช้งาน</span>
+              <span className="lg:hidden text-xs font-semibold">คู่มือ</span>
+            </button>
+
             {/* Admin Master Data button */}
             {isAdmin && (
               <button

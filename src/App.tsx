@@ -60,6 +60,7 @@ import { HistoryView } from './components/HistoryView';
 import { RecordFormModal } from './components/RecordFormModal';
 import { MasterDataModal } from './components/MasterDataModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
+import { UserGuideModal } from './components/UserGuideModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Plus, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -114,6 +115,7 @@ export default function App() {
   const [editingRecord, setEditingRecord] = useState<CarWashRecord | null>(null);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
+  const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Confirmation Dialog State (For Destructive Operations)
@@ -683,6 +685,7 @@ export default function App() {
           }
         }}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
+        onOpenUserGuide={() => setIsUserGuideOpen(true)}
         onManualSync={handleManualFullSync}
         onLogout={handleLogout}
       />
@@ -690,7 +693,7 @@ export default function App() {
       {/* Viewer Notification Banner */}
       {isViewer && (
         <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-200/80 px-4 sm:px-6 lg:px-8 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm text-amber-900 font-medium">
               <span className="flex h-2.5 w-2.5 relative shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -700,6 +703,13 @@ export default function App() {
                 <strong className="font-bold text-amber-950">สถานะ: บัญชีผู้เข้าชม (Viewer - ดูได้อย่างเดียว)</strong> — บัญชีของคุณยังไม่ได้รับการอนุมัติสิทธิ์การบันทึกข้อมูล สามารถค้นหาและดูข้อมูลได้ หากต้องการบันทึกรถล้าง กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อปรับสิทธิ์
               </span>
             </div>
+            <button
+              id="banner-open-guide-btn"
+              onClick={() => setIsUserGuideOpen(true)}
+              className="px-3 py-1.5 bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold shrink-0 shadow-2xs transition-colors flex items-center gap-1.5"
+            >
+              <span>📖 ดูคู่มือการใช้งาน</span>
+            </button>
           </div>
         </div>
       )}
@@ -809,6 +819,13 @@ export default function App() {
         hasOAuthToken={hasAuthToken}
         onReauthGoogle={handleGoogleSignIn}
         isAdmin={currentUser.role === 'admin'}
+      />
+
+      {/* User Guide Modal */}
+      <UserGuideModal
+        isOpen={isUserGuideOpen}
+        onClose={() => setIsUserGuideOpen(false)}
+        userRole={currentUser?.role}
       />
 
       {/* Confirmation Dialog for Destructive / Editing actions */}
