@@ -45,6 +45,7 @@ import { storage } from './lib/storage';
 import { 
   CarWashRecord, 
   UserProfile, 
+  UserRole,
   GoogleSheetConfig, 
   FilterState, 
   CarColor, 
@@ -78,7 +79,7 @@ export default function App() {
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => storage.getUserProfiles());
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig | null>(() => storage.getSheetConfig());
 
-  // UI Navigation & Filters - default to history for staff, dashboard for admin & supervisor
+  // UI Navigation & Filters - default to history for staff/viewers, dashboard for admin & supervisor
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>(() => {
     const session = storage.getDemoSession();
     return session?.role === 'admin' || session?.role === 'supervisor' ? 'dashboard' : 'history';
@@ -86,14 +87,20 @@ export default function App() {
 
   const isAdmin = currentUser?.role === 'admin';
   const isSupervisor = currentUser?.role === 'supervisor';
+  const isStaff = currentUser?.role === 'staff';
+  const isViewer = currentUser?.role === 'viewer';
   const canViewDashboard = isAdmin || isSupervisor;
+  const canAddRecord = isAdmin || isSupervisor || isStaff;
+  const canEditRecord = isAdmin || isSupervisor;
+  const canDeleteRecord = isAdmin;
+  const canManageMasterData = isAdmin;
 
   // Automatically enforce tab permission if user role changes
   useEffect(() => {
-    if (currentUser && currentUser.role === 'staff' && activeTab === 'dashboard') {
+    if (currentUser && !canViewDashboard && activeTab === 'dashboard') {
       setActiveTab('history');
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser, canViewDashboard, activeTab]);
   const [filterState, setFilterState] = useState<FilterState>({
     month: new Date().toISOString().substring(0, 7), // e.g. 2026-09
     branch: 'all',
@@ -178,7 +185,8 @@ export default function App() {
           // Check role from userProfiles list or default admin for jira.a@premium-auto.co.th
           const email = (user.email || '').toLowerCase();
           const existingProfile = userProfiles.find(p => p.email.toLowerCase() === email);
-          const role = existingProfile?.role || (email.includes('admin') || email === 'jira.a@premium-auto.co.th' ? 'admin' : 'staff');
+          const isSuperAdmin = email === 'jira.a@premium-auto.co.th' || email.startsWith('admin@') || email.includes('admin');
+          const role: UserRole = existingProfile?.role || (isSuperAdmin ? 'admin' : 'viewer');
 
           const profile: UserProfile = {
             uid: user.uid,
@@ -188,6 +196,13 @@ export default function App() {
             role
           };
           setCurrentUser(profile);
+
+          // If new user not in userProfiles, auto-register them so Admin can see and approve in Master Data
+          if (!existingProfile && email) {
+            const updatedUsers = [...userProfiles, profile];
+            setUserProfiles(updatedUsers);
+            syncAllUsersToFirestore(updatedUsers).catch(console.warn);
+          }
         }
       },
       () => {
@@ -312,7 +327,8 @@ export default function App() {
         setHasAuthToken(true);
         const email = (result.user.email || '').toLowerCase();
         const existingProfile = userProfiles.find(p => p.email.toLowerCase() === email);
-        const role = existingProfile?.role || (email.includes('admin') || email === 'jira.a@premium-auto.co.th' ? 'admin' : 'staff');
+        const isSuperAdmin = email === 'jira.a@premium-auto.co.th' || email.startsWith('admin@') || email.includes('admin');
+        const role: UserRole = existingProfile?.role || (isSuperAdmin ? 'admin' : 'viewer');
 
         const profile: UserProfile = {
           uid: result.user.uid,
@@ -322,7 +338,19 @@ export default function App() {
           role
         };
         setCurrentUser(profile);
-        showToast(`ยินดีต้อนรับ ${profile.displayName} เข้าสู่ระบบ`, 'success');
+
+        // If new user not in userProfiles, auto-register them
+        if (!existingProfile && email) {
+          const updatedUsers = [...userProfiles, profile];
+          setUserProfiles(updatedUsers);
+          syncAllUsersToFirestore(updatedUsers).catch(console.warn);
+        }
+
+        if (role === 'viewer') {
+          showToast(`ยินดีต้อนรับ ${profile.displayName} (สถานะ: ผู้เข้าชม รออนุมัติสิทธิ์)`, 'info');
+        } else {
+          showToast(`ยินดีต้อนรับ ${profile.displayName} เข้าสู่ระบบ`, 'success');
+        }
       }
     } catch (err: any) {
       console.error('Google Sign in error:', err);
@@ -466,6 +494,16 @@ export default function App() {
     recordData: Omit<CarWashRecord, 'id' | 'createdAt' | 'updatedAt' | 'syncedToSheet'>,
     existingId?: string
   ) => {
+    // Permission guard
+    if (existingId && !canEditRecord) {
+      showToast('คุณไม่มีสิทธิ์แก้ไขรายการรถล้าง (เฉพาะ Admin และ Supervisor)', 'error');
+      return;
+    }
+    if (!existingId && !canAddRecord) {
+      showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'error');
+      return;
+    }
+
     const now = new Date().toISOString();
 
     if (existingId) {
@@ -526,12 +564,20 @@ export default function App() {
 
   // Handle Admin Edit Record (Opens Edit Modal)
   const handleEditRecordClick = (record: CarWashRecord) => {
+    if (!canEditRecord) {
+      showToast('คุณไม่มีสิทธิ์แก้ไขรายการรถล้าง', 'error');
+      return;
+    }
     setEditingRecord(record);
     setIsRecordModalOpen(true);
   };
 
   // Handle Admin Delete Record (MANDATORY: Explicit confirmation dialog per workspace skill)
   const handleDeleteRecordClick = (record: CarWashRecord) => {
+    if (!canDeleteRecord) {
+      showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้', 'error');
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: 'ยืนยันการลบรายการรถล้าง',
@@ -624,6 +670,10 @@ export default function App() {
         sheetConfig={sheetConfig}
         isSyncing={isSyncing}
         onOpenNewRecord={() => {
+          if (!canAddRecord) {
+            showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
+            return;
+          }
           setEditingRecord(null);
           setIsRecordModalOpen(true);
         }}
@@ -637,6 +687,23 @@ export default function App() {
         onLogout={handleLogout}
       />
 
+      {/* Viewer Notification Banner */}
+      {isViewer && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-200/80 px-4 sm:px-6 lg:px-8 py-3">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm text-amber-900 font-medium">
+              <span className="flex h-2.5 w-2.5 relative shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span>
+                <strong className="font-bold text-amber-950">สถานะ: บัญชีผู้เข้าชม (Viewer - ดูได้อย่างเดียว)</strong> — บัญชีของคุณยังไม่ได้รับการอนุมัติสิทธิ์การบันทึกข้อมูล สามารถค้นหาและดูข้อมูลได้ หากต้องการบันทึกรถล้าง กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อปรับสิทธิ์
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {canViewDashboard && activeTab === 'dashboard' ? (
@@ -647,6 +714,10 @@ export default function App() {
             filterState={filterState}
             onFilterChange={(newFilters) => setFilterState(prev => ({ ...prev, ...newFilters }))}
             onOpenNewRecord={() => {
+              if (!canAddRecord) {
+                showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
+                return;
+              }
               setEditingRecord(null);
               setIsRecordModalOpen(true);
             }}
@@ -662,6 +733,10 @@ export default function App() {
             onEditRecord={handleEditRecordClick}
             onDeleteRecord={handleDeleteRecordClick}
             onOpenNewRecord={() => {
+              if (!canAddRecord) {
+                showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
+                return;
+              }
               setEditingRecord(null);
               setIsRecordModalOpen(true);
             }}
@@ -673,17 +748,19 @@ export default function App() {
       </main>
 
       {/* Mobile Floating Action Button (FAB) for fast car wash recording */}
-      <button
-        id="mobile-quick-log-fab"
-        onClick={() => {
-          setEditingRecord(null);
-          setIsRecordModalOpen(true);
-        }}
-        aria-label="ลงข้อมูลรถใหม่"
-        className="md:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-sky-600 to-teal-500 text-white shadow-xl shadow-sky-600/30 flex items-center justify-center active:scale-95 transition-transform"
-      >
-        <Plus className="w-7 h-7 stroke-[2.5]" />
-      </button>
+      {canAddRecord && (
+        <button
+          id="mobile-quick-log-fab"
+          onClick={() => {
+            setEditingRecord(null);
+            setIsRecordModalOpen(true);
+          }}
+          aria-label="ลงข้อมูลรถใหม่"
+          className="md:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-sky-600 to-teal-500 text-white shadow-xl shadow-sky-600/30 flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <Plus className="w-7 h-7 stroke-[2.5]" />
+        </button>
+      )}
 
       {/* Record Creation / Editing Modal */}
       <RecordFormModal

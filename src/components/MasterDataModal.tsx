@@ -922,12 +922,12 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
             <div className="space-y-6">
               {/* Add User Role Form */}
               <form onSubmit={handleAddUser} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    กำหนดสิทธิ์ผู้ใช้งาน (Admin / Supervisor / Staff)
+                    กำหนดสิทธิ์ผู้ใช้งาน (Admin / Supervisor / Staff / Viewer)
                   </h4>
                   <span className="text-[11px] text-slate-500">
-                    * Supervisor เข้าดู Dashboard ได้ แต่เข้าจัดการข้อมูลหลักไม่ได้
+                    * ผู้เข้าสู่ระบบใหม่ที่ไม่ระบุไว้ จะได้รับสิทธิ์ Viewer (ดูได้อย่างเดียว) โดยอัตโนมัติ
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -952,9 +952,10 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                       onChange={(e) => setNewUserRole(e.target.value as UserRole)}
                       className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     >
-                      <option value="staff">พนักงานทั่วไป (Staff)</option>
-                      <option value="supervisor">หัวหน้างาน / ดูสรุป (Supervisor)</option>
-                      <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                      <option value="staff">พนักงานทั่วไป (Staff - บันทึกข้อมูล)</option>
+                      <option value="supervisor">หัวหน้างาน (Supervisor - แดชบอร์ด)</option>
+                      <option value="admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม)</option>
+                      <option value="viewer">ผู้เข้าชม (Viewer - ดูอย่างเดียว)</option>
                     </select>
                     <button
                       type="submit"
@@ -967,12 +968,80 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                 </div>
               </form>
 
+              {/* Pending Approvals Notice Section (if any users have role === 'viewer') */}
+              {userProfiles.some(u => u.role === 'viewer') && (
+                <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                      <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                        ผู้ใช้งานที่รออนุมัติสิทธิ์ ({userProfiles.filter(u => u.role === 'viewer').length} ท่าน)
+                      </h4>
+                    </div>
+                    <span className="text-[11px] text-amber-800">
+                      คลิกปุ่มเพื่ออนุมัติสิทธิ์การบันทึกได้ทันที
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {userProfiles.filter(u => u.role === 'viewer').map((viewer) => (
+                      <div
+                        key={viewer.email}
+                        className="p-3 bg-white rounded-xl border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {viewer.displayName || viewer.email}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-mono">
+                            {viewer.email}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                          <button
+                            onClick={() => handleRoleToggle(viewer.email, 'staff')}
+                            className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            ✓ อนุมัติเป็น Staff
+                          </button>
+                          <button
+                            onClick={() => handleRoleToggle(viewer.email, 'supervisor')}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            ✓ อนุมัติเป็น Supervisor
+                          </button>
+                          <button
+                            onClick={() => handleRoleToggle(viewer.email, 'admin')}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            ✓ อนุมัติเป็น Admin
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(viewer.email)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors ml-1"
+                            title="ลบออก"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* User List with Edit & Delete */}
               <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                  รายชื่อผู้ใช้และสิทธิ์ทั้งหมด ({userProfiles.length} บัญชี)
+                </div>
                 {userProfiles.map((user) => {
                   const isEditing = editingUserEmail?.toLowerCase() === user.email.toLowerCase();
                   const isAdmin = user.role === 'admin';
                   const isSupervisor = user.role === 'supervisor';
+                  const isStaff = user.role === 'staff';
+                  const isViewer = user.role === 'viewer';
 
                   if (isEditing) {
                     return (
@@ -994,9 +1063,10 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                             onChange={(e) => setEditUserRole(e.target.value as UserRole)}
                             className="px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs focus:outline-none"
                           >
-                            <option value="staff">พนักงานทั่วไป (Staff)</option>
-                            <option value="supervisor">หัวหน้างาน / ดูสรุป (Supervisor)</option>
-                            <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                            <option value="staff">พนักงานทั่วไป (Staff - บันทึกข้อมูล)</option>
+                            <option value="supervisor">หัวหน้างาน (Supervisor - แดชบอร์ด)</option>
+                            <option value="admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม)</option>
+                            <option value="viewer">ผู้เข้าชม (Viewer - ดูอย่างเดียว รออนุมัติ)</option>
                           </select>
                         </div>
                         <div className="flex justify-end gap-2">
@@ -1032,10 +1102,18 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                                 ? 'bg-sky-50 text-sky-800 border-sky-200'
                                 : isSupervisor
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                                : isStaff
+                                ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
                             }`}
                           >
-                            {isAdmin ? 'ADMIN' : isSupervisor ? 'SUPERVISOR (DASHBOARD)' : 'STAFF'}
+                            {isAdmin
+                              ? 'ADMIN'
+                              : isSupervisor
+                              ? 'SUPERVISOR (DASHBOARD)'
+                              : isStaff
+                              ? 'STAFF'
+                              : 'VIEWER (รออนุมัติ)'}
                           </span>
                         </div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{user.email}</div>
@@ -1044,7 +1122,9 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                             ? '• มีสิทธิ์เต็ม: ดู Dashboard + ข้อมูลรถ + จัดการข้อมูลพื้นฐาน'
                             : isSupervisor
                             ? '• ดู Dashboard + ดูประวัติและส่งออกข้อมูล (ไม่สามารถแก้ไขข้อมูลพื้นฐาน)'
-                            : '• บันทึกรถล้างและดูประวัติรายการ'}
+                            : isStaff
+                            ? '• บันทึกรถล้างและดูประวัติรายการ'
+                            : '• ดูรายการและค้นหาประวัติได้เท่านั้น (ไม่สามารถเพิ่มหรือแก้ไขข้อมูล)'}
                         </div>
                       </div>
 
@@ -1053,9 +1133,10 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                         <select
                           value={user.role}
                           onChange={(e) => handleRoleToggle(user.email, e.target.value as UserRole)}
-                          className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                         >
-                          <option value="staff">Staff (ทั่วไป)</option>
+                          <option value="viewer">Viewer (ดูอย่างเดียว)</option>
+                          <option value="staff">Staff (บันทึกข้อมูล)</option>
                           <option value="supervisor">Supervisor (แดชบอร์ด)</option>
                           <option value="admin">Admin (ผู้ดูแลระบบ)</option>
                         </select>

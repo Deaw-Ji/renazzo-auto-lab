@@ -169,6 +169,11 @@ export const RecordFormModal: React.FC<RecordFormModalProps> = ({
     }
     setValidationError(null);
 
+    if (currentUser?.role === 'viewer') {
+      setValidationError('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้ กรุณาติดต่อ Admin เพื่อขออนุมัติสิทธิ์');
+      return;
+    }
+
     // Flexible Plate / VIN Validation: At least one must be provided
     const cleanPlate = licensePlate.trim();
     const cleanVin = vinNumber.trim();

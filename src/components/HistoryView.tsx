@@ -48,6 +48,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const isSupervisor = currentUser?.role === 'supervisor';
+  const isStaff = currentUser?.role === 'staff';
+  const canAddRecord = isAdmin || isSupervisor || isStaff;
   const canEditRecord = isAdmin || isSupervisor;
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
 
@@ -163,12 +165,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <span className="hidden sm:inline">ส่งออก CSV</span>
             </button>
 
-            <button
-              onClick={onOpenNewRecord}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white flex items-center gap-1.5 shadow-xs transition-colors"
-            >
-              <span>+ เพิ่มรถล้าง</span>
-            </button>
+            {canAddRecord && (
+              <button
+                id="history-add-record-btn"
+                onClick={onOpenNewRecord}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 active:scale-98 text-white flex items-center gap-1.5 shadow-xs transition-colors"
+              >
+                <span>+ เพิ่มรถล้าง</span>
+              </button>
+            )}
           </div>
         </div>
 

@@ -51,7 +51,7 @@ export interface Employee {
   isActive: boolean;
 }
 
-export type UserRole = 'admin' | 'supervisor' | 'staff';
+export type UserRole = 'admin' | 'supervisor' | 'staff' | 'viewer';
 
 export interface UserProfile {
   uid: string;

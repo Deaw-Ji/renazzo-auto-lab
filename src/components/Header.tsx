@@ -42,7 +42,10 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const isSupervisor = currentUser?.role === 'supervisor';
+  const isStaff = currentUser?.role === 'staff';
+  const isViewer = currentUser?.role === 'viewer';
   const canViewDashboard = isAdmin || isSupervisor;
+  const canAddRecord = isAdmin || isSupervisor || isStaff;
 
   return (
     <header id="app-main-header" className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -109,14 +112,24 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* Quick Add Log Button */}
-            <button
-              id="header-add-record-btn"
-              onClick={onOpenNewRecord}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 active:scale-98 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs shadow-sky-500/20 transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>เพิ่มรถล้าง</span>
-            </button>
+            {canAddRecord ? (
+              <button
+                id="header-add-record-btn"
+                onClick={onOpenNewRecord}
+                className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 active:scale-98 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs shadow-sky-500/20 transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>เพิ่มรถล้าง</span>
+              </button>
+            ) : (
+              <div 
+                title="สิทธิ์ผู้เข้าชม: รอผู้ดูแลระบบอนุมัติสิทธิ์ในการบันทึกข้อมูล"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-semibold"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>ผู้เข้าชม (ดูอย่างเดียว)</span>
+              </div>
+            )}
 
             {/* Google Sheet Master Sync Button / Indicator */}
             {sheetConfig?.isConnected ? (
@@ -185,12 +198,14 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="max-w-[120px] truncate">{currentUser?.displayName || currentUser?.email}</span>
                     {isAdmin && <ShieldCheck className="w-3.5 h-3.5 text-sky-600 inline" />}
                   </div>
-                  <span className="text-[10px] text-slate-500 font-medium">
+                  <span className={`text-[10px] font-medium ${isViewer ? 'text-amber-600 font-semibold' : 'text-slate-500'}`}>
                     {isAdmin
                       ? 'ผู้ดูแลระบบ (Admin)'
                       : isSupervisor
                       ? 'หัวหน้างาน (Supervisor)'
-                      : 'พนักงาน (Staff)'}
+                      : isStaff
+                      ? 'พนักงาน (Staff)'
+                      : 'ผู้เข้าชม (รออนุมัติ)'}
                   </span>
                 </div>
               </div>
