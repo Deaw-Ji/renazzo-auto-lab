@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { CarWashRecord, Branch, Employee, CarColor, CarBrand, UserProfile } from '../types';
+import { storage } from './storage';
 
 export enum OperationType {
   CREATE = 'create',
@@ -114,8 +115,32 @@ export const deleteRecordFromFirestore = async (recordId: string): Promise<void>
   }
 };
 
+// Fetch records once (On-demand low-quota read)
+export const fetchRecordsOnce = async (): Promise<CarWashRecord[]> => {
+  const path = 'records';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const records: CarWashRecord[] = [];
+    snap.forEach((docSnap) => {
+      records.push({ id: docSnap.id, ...docSnap.data() } as CarWashRecord);
+    });
+    records.sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.date).getTime();
+      const timeB = new Date(b.createdAt || b.date).getTime();
+      return timeB - timeA;
+    });
+    return records;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return [];
+  }
+};
+
 // Batch seed records if Firestore collection is empty
 export const seedRecordsToFirestoreIfEmpty = async (initialRecords: CarWashRecord[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
+  // Mark seeded immediately to avoid duplicate attempts from rapid re-renders
+  storage.setSeeded(true);
   const path = 'records';
   try {
     const snap = await getDocs(collection(db, path));
@@ -188,6 +213,7 @@ export const syncAllBranchesToFirestore = async (branches: Branch[]): Promise<vo
 };
 
 export const seedBranchesToFirestoreIfEmpty = async (initialBranches: Branch[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
   const path = 'master_branches';
   try {
     const snap = await getDocs(collection(db, path));
@@ -278,6 +304,7 @@ export const syncAllStaffToFirestore = async (staffList: Employee[]): Promise<vo
 };
 
 export const seedStaffToFirestoreIfEmpty = async (initialStaff: Employee[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
   const path = 'master_staff';
   try {
     const snap = await getDocs(collection(db, path));
@@ -368,6 +395,7 @@ export const syncAllColorsToFirestore = async (colors: CarColor[]): Promise<void
 };
 
 export const seedColorsToFirestoreIfEmpty = async (initialColors: CarColor[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
   const path = 'master_colors';
   try {
     const snap = await getDocs(collection(db, path));
@@ -438,6 +466,7 @@ export const syncAllBrandsToFirestore = async (brands: CarBrand[]): Promise<void
 };
 
 export const seedBrandsToFirestoreIfEmpty = async (initialBrands: CarBrand[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
   const path = 'master_brands';
   try {
     const snap = await getDocs(collection(db, path));
@@ -500,6 +529,7 @@ export const syncAllUsersToFirestore = async (users: UserProfile[]): Promise<voi
 };
 
 export const seedUsersToFirestoreIfEmpty = async (initialUsers: UserProfile[]): Promise<boolean> => {
+  if (storage.isSeeded()) return false;
   const path = 'master_users';
   try {
     const snap = await getDocs(collection(db, path));

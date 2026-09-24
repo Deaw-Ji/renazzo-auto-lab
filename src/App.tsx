@@ -62,7 +62,7 @@ import { MasterDataModal } from './components/MasterDataModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { Plus, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Sparkles, CheckCircle2, AlertCircle, ExternalLink, Database } from 'lucide-react';
 
 export default function App() {
   // Auth state
@@ -135,6 +135,7 @@ export default function App() {
 
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -223,13 +224,21 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
+    const handleSyncError = (err: any) => {
+      const msg = String(err?.message || err || '');
+      if (msg.toLowerCase().includes('quota')) {
+        setIsQuotaExceeded(true);
+      }
+      console.warn('Firestore sync notice:', err);
+    };
+
     // 1. Seed initial data to Firestore if collections are empty
-    seedRecordsToFirestoreIfEmpty(records).catch((e) => console.warn('Seed records notice:', e));
-    seedBranchesToFirestoreIfEmpty(branches).catch((e) => console.warn('Seed branches notice:', e));
-    seedStaffToFirestoreIfEmpty(employees).catch((e) => console.warn('Seed staff notice:', e));
-    seedColorsToFirestoreIfEmpty(colors).catch((e) => console.warn('Seed colors notice:', e));
-    seedBrandsToFirestoreIfEmpty(brands).catch((e) => console.warn('Seed brands notice:', e));
-    seedUsersToFirestoreIfEmpty(userProfiles).catch((e) => console.warn('Seed users notice:', e));
+    seedRecordsToFirestoreIfEmpty(records).catch(handleSyncError);
+    seedBranchesToFirestoreIfEmpty(branches).catch(handleSyncError);
+    seedStaffToFirestoreIfEmpty(employees).catch(handleSyncError);
+    seedColorsToFirestoreIfEmpty(colors).catch(handleSyncError);
+    seedBrandsToFirestoreIfEmpty(brands).catch(handleSyncError);
+    seedUsersToFirestoreIfEmpty(userProfiles).catch(handleSyncError);
 
     // 2. Subscribe to real-time records
     const unsubRecords = subscribeToRecords(
@@ -238,7 +247,7 @@ export default function App() {
           setRecords(liveRecords);
         }
       },
-      (err) => console.warn('Firestore records sync notice:', err)
+      handleSyncError
     );
 
     // 3. Subscribe to real-time branches
@@ -248,7 +257,7 @@ export default function App() {
           setBranches(liveBranches);
         }
       },
-      (err) => console.warn('Firestore branches sync notice:', err)
+      handleSyncError
     );
 
     // 4. Subscribe to real-time staff
@@ -258,7 +267,7 @@ export default function App() {
           setEmployees(liveStaff);
         }
       },
-      (err) => console.warn('Firestore staff sync notice:', err)
+      handleSyncError
     );
 
     // 5. Subscribe to real-time colors
@@ -268,7 +277,7 @@ export default function App() {
           setColors(liveColors);
         }
       },
-      (err) => console.warn('Firestore colors sync notice:', err)
+      handleSyncError
     );
 
     // 6. Subscribe to real-time brands
@@ -278,7 +287,7 @@ export default function App() {
           setBrands(liveBrands);
         }
       },
-      (err) => console.warn('Firestore brands sync notice:', err)
+      handleSyncError
     );
 
     // 7. Subscribe to real-time users
@@ -288,7 +297,7 @@ export default function App() {
           setUserProfiles(liveUsers);
         }
       },
-      (err) => console.warn('Firestore users sync notice:', err)
+      handleSyncError
     );
 
     // 8. Subscribe to shared central Google Sheet config
@@ -305,7 +314,7 @@ export default function App() {
           });
         }
       },
-      (err) => console.warn('Firestore sheet config sync notice:', err)
+      handleSyncError
     );
 
     return () => {
@@ -698,6 +707,30 @@ export default function App() {
         onLogout={handleLogout}
       />
 
+      {/* Quota Exceeded Notification Banner */}
+      {isQuotaExceeded && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-b border-amber-300 px-4 sm:px-6 lg:px-8 py-3.5">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5 text-xs sm:text-sm text-amber-950 font-medium">
+              <Database className="w-5 h-5 shrink-0 text-amber-600 mt-0.5 sm:mt-0" />
+              <span>
+                <strong className="font-bold text-amber-950">แจ้งเตือนโควตาการอ่านข้อมูล Firestore (Free Tier) ถึงขีดจำกัดประจำวันแล้ว:</strong> ระบบกำลังทำงานด้วยข้อมูล Local Cache อัตโนมัติ โดยโควตาจะรีเซ็ตในวันถัดไป หรือสามารถอัปเกรดเพื่อปลดล็อกได้ที่ Firebase Console
+              </span>
+            </div>
+            <a
+              id="banner-firestore-upgrade-link"
+              href="https://console.firebase.google.com/project/gen-lang-client-0914990962/firestore/databases/ai-studio-renazzoautolab-63911943-8222-4a99-99f5-67bdf9e55f99/data?openUpgradeDialog=true"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shrink-0 shadow-xs transition-colors"
+            >
+              <span>เปิด Firebase Console</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Viewer Notification Banner */}
       {isViewer && (
         <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-200/80 px-4 sm:px-6 lg:px-8 py-3">
@@ -794,6 +827,7 @@ export default function App() {
         brands={brands}
         employees={employees}
         currentUser={currentUser}
+        existingRecords={records}
       />
 
       {/* Admin Master Data Modal */}

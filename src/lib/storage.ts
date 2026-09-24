@@ -24,7 +24,8 @@ const KEYS = {
   EMPLOYEES: 'carwash_employees_v1',
   USER_ROLES: 'carwash_user_roles_v1',
   SHEET_CONFIG: 'carwash_sheet_config_v1',
-  DEMO_SESSION: 'carwash_demo_session_v1'
+  DEMO_SESSION: 'carwash_demo_session_v1',
+  SEEDED: 'carwash_seeded_v1'
 };
 
 export const storage = {
@@ -161,6 +162,21 @@ export const storage = {
       }
     } catch (e) {
       console.error('Failed to save demo session', e);
+    }
+  },
+
+  isSeeded: (): boolean => {
+    try {
+      return localStorage.getItem(KEYS.SEEDED) === 'true';
+    } catch {
+      return false;
+    }
+  },
+  setSeeded: (seeded: boolean = true) => {
+    try {
+      localStorage.setItem(KEYS.SEEDED, String(seeded));
+    } catch (e) {
+      console.error('Failed to save seeded status', e);
     }
   }
 };
