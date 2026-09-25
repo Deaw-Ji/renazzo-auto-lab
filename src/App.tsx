@@ -4,44 +4,23 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  initAuth, 
-  googleSignIn, 
-  getAccessToken, 
-  setAccessToken, 
-  logout 
-} from './lib/firebase';
-import { 
-  getOrCreateSpreadsheet, 
-  connectExistingSpreadsheet,
-  appendRecordToSheet, 
-  fullSyncRecordsToSheet, 
-  fetchRecordsFromSheet 
-} from './lib/googleSheets';
-import {
-  subscribeToRecords,
-  saveRecordToFirestore,
-  deleteRecordFromFirestore,
-  seedRecordsToFirestoreIfEmpty,
-  subscribeToBranches,
-  syncAllBranchesToFirestore,
-  seedBranchesToFirestoreIfEmpty,
-  subscribeToStaff,
-  syncAllStaffToFirestore,
-  seedStaffToFirestoreIfEmpty,
-  subscribeToColors,
-  syncAllColorsToFirestore,
-  seedColorsToFirestoreIfEmpty,
-  subscribeToBrands,
-  syncAllBrandsToFirestore,
-  seedBrandsToFirestoreIfEmpty,
-  subscribeToUserProfiles,
-  syncAllUsersToFirestore,
-  seedUsersToFirestoreIfEmpty,
-  subscribeToSharedSheetConfig,
-  saveSharedSheetConfigToFirestore
-} from './lib/firestoreService';
 import { storage } from './lib/storage';
+import { 
+  authenticateUser, 
+  changeUserPassword, 
+  addNewUser, 
+  updateUserDetails, 
+  adminResetUserPassword, 
+  removeUser 
+} from './lib/authService';
+import { 
+  pullDataFromGoogleSheet, 
+  pushAllToGoogleSheet, 
+  autoSyncJobToGoogleSheet, 
+  autoSyncDeleteJobFromGoogleSheet, 
+  autoSyncUsersToGoogleSheet, 
+  exportAllDataToExcel 
+} from './lib/googleSheetsService';
 import { 
   CarWashRecord, 
   UserProfile, 
@@ -51,7 +30,8 @@ import {
   CarColor, 
   Branch, 
   CarBrand, 
-  Employee 
+  Employee,
+  MasterSettingsData
 } from './types';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
@@ -59,49 +39,48 @@ import { DashboardView } from './components/DashboardView';
 import { HistoryView } from './components/HistoryView';
 import { RecordFormModal } from './components/RecordFormModal';
 import { MasterDataModal } from './components/MasterDataModal';
+import { UserManagementModal } from './components/UserManagementModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { Plus, Sparkles, CheckCircle2, AlertCircle, ExternalLink, Database } from 'lucide-react';
+import { Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
-  // Auth state
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => storage.getDemoSession());
-  const [hasAuthToken, setHasAuthToken] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  // 1. RBAC Authentication State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => storage.getCurrentUser());
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  // App Master Data & Records
+  // 2. Application Master Data & Records
   const [records, setRecords] = useState<CarWashRecord[]>(() => storage.getRecords());
   const [colors, setColors] = useState<CarColor[]>(() => storage.getColors());
   const [branches, setBranches] = useState<Branch[]>(() => storage.getBranches());
   const [brands, setBrands] = useState<CarBrand[]>(() => storage.getBrands());
   const [employees, setEmployees] = useState<Employee[]>(() => storage.getEmployees());
-  const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => storage.getUserProfiles());
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => storage.getUsers());
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig | null>(() => storage.getSheetConfig());
 
-  // UI Navigation & Filters - default to history for staff/viewers, dashboard for admin & supervisor
+  // 3. UI Navigation & Permissions
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>(() => {
-    const session = storage.getDemoSession();
-    return session?.role === 'admin' || session?.role === 'supervisor' ? 'dashboard' : 'history';
+    const user = storage.getCurrentUser();
+    return user?.role === 'Admin' || user?.role === 'Accounting' ? 'dashboard' : 'history';
   });
 
-  const isAdmin = currentUser?.role === 'admin';
-  const isSupervisor = currentUser?.role === 'supervisor';
-  const isStaff = currentUser?.role === 'staff';
-  const isViewer = currentUser?.role === 'viewer';
-  const canViewDashboard = isAdmin || isSupervisor;
-  const canAddRecord = isAdmin || isSupervisor || isStaff;
-  const canEditRecord = isAdmin || isSupervisor;
-  const canDeleteRecord = isAdmin;
-  const canManageMasterData = isAdmin;
+  const isAdmin = currentUser?.role === 'Admin';
+  const isAccounting = currentUser?.role === 'Accounting';
+  const isOfficer = currentUser?.role === 'Administration Officer';
 
-  // Automatically enforce tab permission if user role changes
-  useEffect(() => {
-    if (currentUser && !canViewDashboard && activeTab === 'dashboard') {
-      setActiveTab('history');
-    }
-  }, [currentUser, canViewDashboard, activeTab]);
+  // Role Permissions:
+  // - Admin: All access, can view dashboard, add, edit, DELETE, manage users, master data, sheet config
+  // - Accounting: View dashboard summaries, history, add, edit, export Excel, NO DELETE
+  // - Officer: View history, add, edit, NO DELETE
+  const canViewDashboard = isAdmin || isAccounting;
+  const canAddRecord = true;
+  const canEditRecord = true;
+  const canDeleteRecord = isAdmin; // Strictly ONLY Admin can delete!
+
+  // Filter State
   const [filterState, setFilterState] = useState<FilterState>({
     month: new Date().toISOString().substring(0, 7), // e.g. 2026-09
     branch: 'all',
@@ -114,11 +93,13 @@ export default function App() {
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CarWashRecord | null>(null);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
   const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Confirmation Dialog State (For Destructive Operations)
+  // Confirmation Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -135,7 +116,6 @@ export default function App() {
 
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
-  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -166,7 +146,7 @@ export default function App() {
   }, [employees]);
 
   useEffect(() => {
-    storage.saveUserProfiles(userProfiles);
+    storage.saveUsers(userProfiles);
   }, [userProfiles]);
 
   useEffect(() => {
@@ -174,378 +154,323 @@ export default function App() {
   }, [sheetConfig]);
 
   useEffect(() => {
-    storage.saveDemoSession(currentUser);
+    storage.saveCurrentUser(currentUser);
   }, [currentUser]);
 
-  // Firebase Auth initialization listener
+  // Enforce tab permission
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (user, token) => {
-        if (token) {
-          setHasAuthToken(true);
-        }
-        if (user) {
-          // Check role from userProfiles list or default admin for jira.a@premium-auto.co.th
-          const email = (user.email || '').toLowerCase();
-          const existingProfile = userProfiles.find(p => p.email.toLowerCase() === email);
-          const isSuperAdmin = email === 'jira.a@premium-auto.co.th' || email.startsWith('admin@') || email.includes('admin');
-          const role: UserRole = existingProfile?.role || (isSuperAdmin ? 'admin' : 'viewer');
+    if (currentUser && !canViewDashboard && activeTab === 'dashboard') {
+      setActiveTab('history');
+    }
+  }, [currentUser, canViewDashboard, activeTab]);
 
-          const profile: UserProfile = {
-            uid: user.uid,
-            email: user.email || 'user@company.com',
-            displayName: user.displayName || user.email?.split('@')[0] || 'User',
-            photoURL: user.photoURL || undefined,
-            role
-          };
-          setCurrentUser(profile);
-
-          // If new user not in userProfiles, auto-register them so Admin can see and approve in Master Data
-          if (!existingProfile && email) {
-            const updatedUsers = [...userProfiles, profile];
-            setUserProfiles(updatedUsers);
-            syncAllUsersToFirestore(updatedUsers).catch(console.warn);
-          }
-        }
-      },
-      () => {
-        // Auth failure or signed out
-        if (!storage.getDemoSession()) {
-          setCurrentUser(null);
-        }
-        setHasAuthToken(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [userProfiles]);
-
-  // Real-time Firestore synchronization for records and master data
+  // CRITICAL REQUIREMENT:
+  // On startup or first connection, automatically fetch / pull existing data from Google Sheet
+  // so existing records in Google Sheet are never lost!
   useEffect(() => {
-    if (!currentUser) return;
+    const autoPullFromSheet = async () => {
+      if (!sheetConfig?.webAppUrl || !sheetConfig.isConnected) return;
+      if (storage.isPullInitialized()) return;
 
-    const handleSyncError = (err: any) => {
-      const msg = String(err?.message || err || '');
-      if (msg.toLowerCase().includes('quota')) {
-        setIsQuotaExceeded(true);
+      try {
+        const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
+        if (pullResult.jobs && pullResult.jobs.length > 0) {
+          setRecords(pullResult.jobs);
+        }
+        if (pullResult.users && pullResult.users.length > 0) {
+          setUserProfiles(pullResult.users);
+        }
+        if (pullResult.settings) {
+          if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
+          if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
+          if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
+          if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
+        }
+        storage.setPullInitialized(true);
+      } catch (err) {
+        console.warn('Initial sheet pull notice:', err);
       }
-      console.warn('Firestore sync notice:', err);
     };
 
-    // 1. Seed initial data to Firestore if collections are empty
-    seedRecordsToFirestoreIfEmpty(records).catch(handleSyncError);
-    seedBranchesToFirestoreIfEmpty(branches).catch(handleSyncError);
-    seedStaffToFirestoreIfEmpty(employees).catch(handleSyncError);
-    seedColorsToFirestoreIfEmpty(colors).catch(handleSyncError);
-    seedBrandsToFirestoreIfEmpty(brands).catch(handleSyncError);
-    seedUsersToFirestoreIfEmpty(userProfiles).catch(handleSyncError);
+    autoPullFromSheet();
+  }, [sheetConfig]);
 
-    // 2. Subscribe to real-time records
-    const unsubRecords = subscribeToRecords(
-      (liveRecords) => {
-        if (liveRecords && liveRecords.length > 0) {
-          setRecords(liveRecords);
-        }
-      },
-      handleSyncError
-    );
-
-    // 3. Subscribe to real-time branches
-    const unsubBranches = subscribeToBranches(
-      (liveBranches) => {
-        if (liveBranches && liveBranches.length > 0) {
-          setBranches(liveBranches);
-        }
-      },
-      handleSyncError
-    );
-
-    // 4. Subscribe to real-time staff
-    const unsubStaff = subscribeToStaff(
-      (liveStaff) => {
-        if (liveStaff && liveStaff.length > 0) {
-          setEmployees(liveStaff);
-        }
-      },
-      handleSyncError
-    );
-
-    // 5. Subscribe to real-time colors
-    const unsubColors = subscribeToColors(
-      (liveColors) => {
-        if (liveColors && liveColors.length > 0) {
-          setColors(liveColors);
-        }
-      },
-      handleSyncError
-    );
-
-    // 6. Subscribe to real-time brands
-    const unsubBrands = subscribeToBrands(
-      (liveBrands) => {
-        if (liveBrands && liveBrands.length > 0) {
-          setBrands(liveBrands);
-        }
-      },
-      handleSyncError
-    );
-
-    // 7. Subscribe to real-time users
-    const unsubUsers = subscribeToUserProfiles(
-      (liveUsers) => {
-        if (liveUsers && liveUsers.length > 0) {
-          setUserProfiles(liveUsers);
-        }
-      },
-      handleSyncError
-    );
-
-    // 8. Subscribe to shared central Google Sheet config
-    const unsubSheetConfig = subscribeToSharedSheetConfig(
-      (liveSheetConfig) => {
-        if (liveSheetConfig && liveSheetConfig.spreadsheetId) {
-          setSheetConfig({
-            spreadsheetId: liveSheetConfig.spreadsheetId,
-            spreadsheetUrl: liveSheetConfig.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${liveSheetConfig.spreadsheetId}`,
-            sheetName: liveSheetConfig.sheetName || 'บันทึกรายการล้างรถ',
-            autoSync: true,
-            isConnected: true,
-            lastSyncedAt: liveSheetConfig.updatedAt || new Date().toISOString()
-          });
-        }
-      },
-      handleSyncError
-    );
-
-    return () => {
-      unsubRecords();
-      unsubBranches();
-      unsubStaff();
-      unsubColors();
-      unsubBrands();
-      unsubUsers();
-      unsubSheetConfig();
+  // Master Data helper
+  const getMasterSettings = useCallback((): MasterSettingsData => {
+    return {
+      colors,
+      branches,
+      brands,
+      employees
     };
-  }, [currentUser]);
+  }, [colors, branches, brands, employees]);
 
-  // Handle Google Sign In
-  const handleGoogleSignIn = async () => {
+  // --------------------------------------------------------------------------
+  // AUTHENTICATION HANDLERS
+  // --------------------------------------------------------------------------
+  const handleLogin = async (email: string, pass: string): Promise<boolean> => {
     setIsAuthLoading(true);
     setAuthError(null);
     try {
-      const result = await googleSignIn();
-      if (result) {
-        setHasAuthToken(true);
-        const email = (result.user.email || '').toLowerCase();
-        const existingProfile = userProfiles.find(p => p.email.toLowerCase() === email);
-        const isSuperAdmin = email === 'jira.a@premium-auto.co.th' || email.startsWith('admin@') || email.includes('admin');
-        const role: UserRole = existingProfile?.role || (isSuperAdmin ? 'admin' : 'viewer');
+      const result = authenticateUser(email, pass, userProfiles);
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        // Update user's last login in user profiles list
+        const updatedUsers = userProfiles.map(u => 
+          u.uid === result.user!.uid ? result.user! : u
+        );
+        setUserProfiles(updatedUsers);
+        storage.saveUsers(updatedUsers);
 
-        const profile: UserProfile = {
-          uid: result.user.uid,
-          email: result.user.email || 'user@company.com',
-          displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
-          photoURL: result.user.photoURL || undefined,
-          role
-        };
-        setCurrentUser(profile);
-
-        // If new user not in userProfiles, auto-register them
-        if (!existingProfile && email) {
-          const updatedUsers = [...userProfiles, profile];
-          setUserProfiles(updatedUsers);
-          syncAllUsersToFirestore(updatedUsers).catch(console.warn);
+        // Auto sync updated login timestamp to Google Sheet in background
+        if (sheetConfig?.webAppUrl) {
+          autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, updatedUsers);
         }
 
-        if (role === 'viewer') {
-          showToast(`ยินดีต้อนรับ ${profile.displayName} (สถานะ: ผู้เข้าชม รออนุมัติสิทธิ์)`, 'info');
+        // Set default view based on role
+        if (result.user.role === 'Admin' || result.user.role === 'Accounting') {
+          setActiveTab('dashboard');
         } else {
-          showToast(`ยินดีต้อนรับ ${profile.displayName} เข้าสู่ระบบ`, 'success');
+          setActiveTab('history');
         }
+
+        showToast(`ยินดีต้อนรับ ${result.user.displayName} เข้าสู่ระบบ (${result.user.role})`, 'success');
+        return true;
+      } else {
+        setAuthError(result.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        return false;
       }
-    } catch (err: any) {
-      if (
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request' ||
-        err?.code === 'auth/popup-blocked'
-      ) {
-        // User closed or dismissed popup intentionally, no error needed
-        return;
-      }
-      console.warn('Google Sign in warning:', err);
-      setAuthError('ไม่สามารถเข้าสู่ระบบด้วย Google ได้: ' + (err.message || 'โปรดลองอีกครั้ง'));
     } finally {
       setIsAuthLoading(false);
     }
   };
 
-  // Demo Sign In
-  const handleDemoSignIn = (profile: UserProfile) => {
-    setCurrentUser(profile);
-    showToast(`เข้าสู่ระบบในชื่อ: ${profile.displayName} (${profile.role.toUpperCase()})`, 'info');
-  };
-
-  // Handle Logout
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
     setCurrentUser(null);
-    setHasAuthToken(false);
-    setAccessToken(null);
-    storage.saveDemoSession(null);
+    storage.saveCurrentUser(null);
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
   };
 
-  // Connect or Create Google Sheet
-  const handleConnectOrCreateSheet = async () => {
+  const handleChangePassword = (oldPass: string, newPass: string) => {
+    if (!currentUser) return { success: false, message: 'กรุณาเข้าสู่ระบบก่อน' };
+
+    const result = changeUserPassword(currentUser.uid, oldPass, newPass, userProfiles);
+    if (result.success && result.updatedUsers) {
+      setUserProfiles(result.updatedUsers);
+      const updatedCurrent = result.updatedUsers.find(u => u.uid === currentUser.uid);
+      if (updatedCurrent) setCurrentUser(updatedCurrent);
+
+      // Auto-sync users to Google Sheet
+      if (sheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, result.updatedUsers);
+      }
+    }
+    return { success: result.success, message: result.message };
+  };
+
+  // --------------------------------------------------------------------------
+  // USER MANAGEMENT HANDLERS (ADMIN ONLY)
+  // --------------------------------------------------------------------------
+  const handleAddUser = (user: { email: string; displayName: string; role: UserRole; password: string }) => {
+    const res = addNewUser(user, userProfiles);
+    if (res.success && res.updatedUsers) {
+      setUserProfiles(res.updatedUsers);
+      if (sheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
+      }
+    }
+    return { success: res.success, message: res.message };
+  };
+
+  const handleUpdateUser = (uid: string, details: { displayName: string; role: UserRole }) => {
+    const res = updateUserDetails(uid, details, userProfiles, currentUser?.uid || '');
+    if (res.success && res.updatedUsers) {
+      setUserProfiles(res.updatedUsers);
+      if (currentUser?.uid === uid) {
+        const updatedSelf = res.updatedUsers.find(u => u.uid === uid);
+        if (updatedSelf) setCurrentUser(updatedSelf);
+      }
+      if (sheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
+      }
+    }
+    return { success: res.success, message: res.message };
+  };
+
+  const handleResetPassword = (uid: string, newPass: string) => {
+    const res = adminResetUserPassword(uid, newPass, userProfiles);
+    if (res.success && res.updatedUsers) {
+      setUserProfiles(res.updatedUsers);
+      if (sheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
+      }
+    }
+    return { success: res.success, message: res.message };
+  };
+
+  const handleDeleteUser = (uid: string) => {
+    const res = removeUser(uid, userProfiles, currentUser?.uid || '');
+    if (res.success && res.updatedUsers) {
+      setUserProfiles(res.updatedUsers);
+      if (sheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
+      }
+    }
+    return { success: res.success, message: res.message };
+  };
+
+  // --------------------------------------------------------------------------
+  // GOOGLE SHEETS WEB APP SYNC HANDLERS
+  // --------------------------------------------------------------------------
+  // Connect and FIRST PULL existing data to prevent overwriting
+  const handleConnectWebApp = async (url: string) => {
     setIsSyncing(true);
     try {
-      let token = await getAccessToken();
-      if (!token) {
-        const signinRes = await googleSignIn();
-        token = signinRes?.accessToken || null;
+      // 1. FIRST PULL existing data from Google Sheet
+      const pullResult = await pullDataFromGoogleSheet(url);
+      let pulledJobsCount = 0;
+
+      // If sheet already has jobs, use them (don't overwrite!)
+      if (pullResult.jobs && pullResult.jobs.length > 0) {
+        setRecords(pullResult.jobs);
+        pulledJobsCount = pullResult.jobs.length;
       }
-      if (!token) {
-        throw new Error('กรุณาเข้าสู่ระบบด้วย Google Account ก่อนทำการเชื่อมต่อชีต');
+      if (pullResult.users && pullResult.users.length > 0) {
+        setUserProfiles(pullResult.users);
+      }
+      if (pullResult.settings) {
+        if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
+        if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
+        if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
+        if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
       }
 
-      const config = await getOrCreateSpreadsheet(token);
-      setSheetConfig(config);
-      await saveSharedSheetConfigToFirestore(config);
+      const newConfig: GoogleSheetConfig = {
+        webAppUrl: url,
+        isConnected: true,
+        lastSyncedAt: new Date().toISOString(),
+        autoSync: true,
+        tabs: {
+          jobs: 'Jobs',
+          users: 'Users',
+          settings: 'Settings_MasterData'
+        }
+      };
 
-      if (records.length > 0) {
-        await fullSyncRecordsToSheet(token, config.spreadsheetId, records);
+      setSheetConfig(newConfig);
+      storage.saveSheetConfig(newConfig);
+      storage.setPullInitialized(true);
+
+      // If sheet had zero jobs, sync baseline so sheet is initialized
+      if (!pullResult.jobs || pullResult.jobs.length === 0) {
+        await pushAllToGoogleSheet(url, {
+          jobs: records,
+          users: userProfiles,
+          settings: getMasterSettings()
+        });
       }
-      showToast('สร้าง Master Google Sheet กลางและบันทึกลงระบบเรียบร้อย', 'success');
+
+      showToast(`เชื่อมต่อ Google Sheet สำเร็จ! อ่านข้อมูลเดิม ${pulledJobsCount} รายการเรียบร้อย`, 'success');
     } catch (err: any) {
-      console.error('Connect sheet failed:', err);
+      console.error('Connect Web App error:', err);
       throw err;
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Connect Existing Custom Google Sheet by Link or ID
-  const handleConnectCustomSheet = async (urlOrId: string) => {
-    setIsSyncing(true);
-    try {
-      let token = await getAccessToken();
-      if (!token) {
-        const signinRes = await googleSignIn();
-        token = signinRes?.accessToken || null;
-      }
-      if (!token) {
-        throw new Error('กรุณาเข้าสู่ระบบด้วย Google Account ก่อนทำการเชื่อมต่อชีต');
-      }
-
-      const config = await connectExistingSpreadsheet(token, urlOrId);
-      setSheetConfig(config);
-      await saveSharedSheetConfigToFirestore(config);
-
-      if (records.length > 0) {
-        await fullSyncRecordsToSheet(token, config.spreadsheetId, records);
-      }
-      showToast('เชื่อมต่อ Master Google Sheet สำเร็จ และตั้งเป็นชีตกลางของระบบเรียบร้อยแล้ว', 'success');
-    } catch (err: any) {
-      console.error('Connect custom sheet failed:', err);
-      throw err;
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Manual Full Sync to Google Sheet
-  const handleManualFullSync = async () => {
-    if (!sheetConfig?.spreadsheetId) {
+  // Manual Pull from Google Sheet
+  const handlePullFromSheet = async () => {
+    if (!sheetConfig?.webAppUrl) {
       setIsSheetSettingsOpen(true);
       return;
     }
 
     setIsSyncing(true);
     try {
-      let token = await getAccessToken();
-      if (!token) {
-        const res = await googleSignIn();
-        token = res?.accessToken || null;
+      const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
+      if (pullResult.jobs && pullResult.jobs.length > 0) {
+        setRecords(pullResult.jobs);
       }
-      if (!token) {
-        throw new Error('ไม่พบการยืนยันตัวตน กรุณาลองใหม่');
+      if (pullResult.users && pullResult.users.length > 0) {
+        setUserProfiles(pullResult.users);
+      }
+      if (pullResult.settings) {
+        if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
+        if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
+        if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
+        if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
       }
 
-      await fullSyncRecordsToSheet(token, sheetConfig.spreadsheetId, records);
       setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
-      showToast('ซิงค์ข้อมูลทั้งหมดไปยัง Google Sheet สำเร็จแล้ว', 'success');
+      showToast(`ดึงข้อมูลล่าสุด ${pullResult.jobs?.length || 0} รายการจาก Google Sheet สำเร็จ`, 'success');
     } catch (err: any) {
-      showToast('การซิงค์ข้อมูลล้มเหลว: ' + err.message, 'error');
+      showToast('ดึงข้อมูลจาก Google Sheet ล้มเหลว: ' + err.message, 'error');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Pull Records from Google Sheet
-  const handlePullFromSheet = async () => {
-    if (!sheetConfig?.spreadsheetId) return;
+  // Manual Push / Sync All to Google Sheet
+  const handleManualFullSync = async () => {
+    if (!sheetConfig?.webAppUrl) {
+      setIsSheetSettingsOpen(true);
+      return;
+    }
 
     setIsSyncing(true);
     try {
-      let token = await getAccessToken();
-      if (!token) {
-        const res = await googleSignIn();
-        token = res?.accessToken || null;
-      }
-      if (!token) throw new Error('กรุณาเข้าสู่ระบบ Google');
+      await pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: getMasterSettings()
+      });
 
-      const sheetRecords = await fetchRecordsFromSheet(token, sheetConfig.spreadsheetId);
-      if (sheetRecords.length > 0) {
-        setRecords(sheetRecords);
-        showToast(`ดึงข้อมูล ${sheetRecords.length} รายการจาก Google Sheet สำเร็จ`, 'success');
-      } else {
-        showToast('Google Sheet ยังไม่มีรายการข้อมูล', 'info');
-      }
+      setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
+      showToast('ส่งข้อมูลทั้งหมด 3 แท็บ (Jobs, Users, Settings) ไปยัง Google Sheet เรียบร้อยแล้ว', 'success');
     } catch (err: any) {
-      showToast('ดึงข้อมูลจากชีตล้มเหลว: ' + err.message, 'error');
+      showToast('การส่งข้อมูลล้มเหลว: ' + err.message, 'error');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Handle Record Creation & Editing
+  // Export Excel (.xlsx) with all 3 sheets
+  const handleExportExcel = () => {
+    try {
+      exportAllDataToExcel(records, userProfiles, getMasterSettings());
+      showToast('ดาวน์โหลดไฟล์ Excel (.xlsx) ครบ 3 แท็บเรียบร้อยแล้ว', 'success');
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาดในการ Export Excel: ' + err.message, 'error');
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // CAR WASH RECORD OPERATIONS
+  // --------------------------------------------------------------------------
   const handleSaveRecord = async (
     recordData: Omit<CarWashRecord, 'id' | 'createdAt' | 'updatedAt' | 'syncedToSheet'>,
     existingId?: string
   ) => {
-    // Permission guard
-    if (existingId && !canEditRecord) {
-      showToast('คุณไม่มีสิทธิ์แก้ไขรายการรถล้าง (เฉพาะ Admin และ Supervisor)', 'error');
-      return;
-    }
-    if (!existingId && !canAddRecord) {
-      showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'error');
-      return;
-    }
-
     const now = new Date().toISOString();
 
     if (existingId) {
-      // EDIT RECORD: Confirm with dialog if needed or apply update
+      // EDIT RECORD
       const existing = records.find(r => r.id === existingId);
       const updatedRecord: CarWashRecord = {
         ...(existing || { id: existingId, createdAt: now }),
         ...recordData,
         updatedAt: now,
-        syncedToSheet: false
+        syncedToSheet: true
       };
 
       const updatedList = records.map(r => r.id === existingId ? updatedRecord : r);
       setRecords(updatedList);
       showToast('อัปเดตข้อมูลรถเรียบร้อยแล้ว', 'success');
 
-      // 1. Save to Cloud Firestore Real-time Database
-      saveRecordToFirestore(updatedRecord).catch(err => console.warn('Firestore update error:', err));
-
-      // 2. Sync updated list to Google Sheet if connected
-      const token = await getAccessToken();
-      if (token && sheetConfig?.spreadsheetId) {
-        fullSyncRecordsToSheet(token, sheetConfig.spreadsheetId, updatedList).catch(console.warn);
+      // Background Auto-Sync to Google Sheet
+      if (sheetConfig?.webAppUrl) {
+        autoSyncJobToGoogleSheet(sheetConfig.webAppUrl, updatedRecord);
       }
     } else {
       // CREATE NEW RECORD
@@ -556,47 +481,33 @@ export default function App() {
         id: newId,
         createdAt: now,
         updatedAt: now,
-        syncedToSheet: false
+        syncedToSheet: true
       };
 
       const updatedList = [newRecord, ...records];
       setRecords(updatedList);
       showToast(`บันทึกข้อมูลรถ ${newRecord.licensePlate || newRecord.vinNumber} สำเร็จ`, 'success');
 
-      // 1. Save to Cloud Firestore Real-time Database
-      saveRecordToFirestore(newRecord).catch(err => console.warn('Firestore save error:', err));
-
-      // 2. Append to Google Sheet in real-time
-      const token = await getAccessToken();
-      if (token && sheetConfig?.spreadsheetId) {
-        appendRecordToSheet(token, sheetConfig.spreadsheetId, newRecord)
-          .then(() => {
-            setRecords(prev => prev.map(r => r.id === newId ? { ...r, syncedToSheet: true } : r));
-            setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
-          })
-          .catch(err => {
-            console.warn('Real-time append to sheet queued:', err);
-          });
+      // Background Auto-Sync to Google Sheet
+      if (sheetConfig?.webAppUrl) {
+        autoSyncJobToGoogleSheet(sheetConfig.webAppUrl, newRecord);
       }
     }
   };
 
-  // Handle Admin Edit Record (Opens Edit Modal)
+  // Handle Edit Record Click
   const handleEditRecordClick = (record: CarWashRecord) => {
-    if (!canEditRecord) {
-      showToast('คุณไม่มีสิทธิ์แก้ไขรายการรถล้าง', 'error');
-      return;
-    }
     setEditingRecord(record);
     setIsRecordModalOpen(true);
   };
 
-  // Handle Admin Delete Record (MANDATORY: Explicit confirmation dialog per workspace skill)
+  // Handle Delete Record Click (STRICTLY ADMIN ONLY)
   const handleDeleteRecordClick = (record: CarWashRecord) => {
-    if (!canDeleteRecord) {
+    if (!isAdmin) {
       showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้', 'error');
       return;
     }
+
     setConfirmDialog({
       isOpen: true,
       title: 'ยืนยันการลบรายการรถล้าง',
@@ -609,50 +520,72 @@ export default function App() {
         setRecords(updatedList);
         showToast('ลบรายการเรียบร้อยแล้ว', 'info');
 
-        // 1. Delete from Cloud Firestore
-        deleteRecordFromFirestore(record.id).catch(err => console.warn('Firestore delete error:', err));
-
-        // 2. Sync deletion to Google Sheet
-        const token = await getAccessToken();
-        if (token && sheetConfig?.spreadsheetId) {
-          fullSyncRecordsToSheet(token, sheetConfig.spreadsheetId, updatedList).catch(console.warn);
+        // Background Auto-Sync deletion to Google Sheet
+        if (sheetConfig?.webAppUrl) {
+          autoSyncDeleteJobFromGoogleSheet(sheetConfig.webAppUrl, record.id);
         }
       }
     });
   };
 
-  // Handle Master Data updates with Firestore sync
-  const handleUpdateBranches = (newBranches: Branch[]) => {
-    setBranches(newBranches);
-    syncAllBranchesToFirestore(newBranches).catch(console.warn);
-  };
-
-  const handleUpdateEmployees = (newEmployees: Employee[]) => {
-    setEmployees(newEmployees);
-    syncAllStaffToFirestore(newEmployees).catch(console.warn);
-  };
-
+  // Master Data Update Handlers (with auto sync to Google Sheet)
   const handleUpdateColors = (newColors: CarColor[]) => {
     setColors(newColors);
-    syncAllColorsToFirestore(newColors).catch(console.warn);
+    if (sheetConfig?.webAppUrl) {
+      pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: { ...getMasterSettings(), colors: newColors }
+      }).catch(console.warn);
+    }
+  };
+
+  const handleUpdateBranches = (newBranches: Branch[]) => {
+    setBranches(newBranches);
+    if (sheetConfig?.webAppUrl) {
+      pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: { ...getMasterSettings(), branches: newBranches }
+      }).catch(console.warn);
+    }
   };
 
   const handleUpdateBrands = (newBrands: CarBrand[]) => {
     setBrands(newBrands);
-    syncAllBrandsToFirestore(newBrands).catch(console.warn);
+    if (sheetConfig?.webAppUrl) {
+      pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: { ...getMasterSettings(), brands: newBrands }
+      }).catch(console.warn);
+    }
+  };
+
+  const handleUpdateEmployees = (newEmployees: Employee[]) => {
+    setEmployees(newEmployees);
+    if (sheetConfig?.webAppUrl) {
+      pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: { ...getMasterSettings(), employees: newEmployees }
+      }).catch(console.warn);
+    }
   };
 
   const handleUpdateUserProfiles = (newUsers: UserProfile[]) => {
     setUserProfiles(newUsers);
-    syncAllUsersToFirestore(newUsers).catch(console.warn);
+    if (sheetConfig?.webAppUrl) {
+      autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, newUsers);
+    }
   };
 
-  // If user is not logged in, display the Login Screen
+  // If not logged in, render Login Screen
   if (!currentUser) {
     return (
       <LoginScreen
-        onGoogleSignIn={handleGoogleSignIn}
-        onDemoSignIn={handleDemoSignIn}
+        onLogin={handleLogin}
+        onQuickLogin={handleLogin}
         isLoading={isAuthLoading}
         errorMessage={authError}
       />
@@ -681,7 +614,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Main App Navigation Header */}
+      {/* Main Navigation Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -689,73 +622,24 @@ export default function App() {
         sheetConfig={sheetConfig}
         isSyncing={isSyncing}
         onOpenNewRecord={() => {
-          if (!canAddRecord) {
-            showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
-            return;
-          }
           setEditingRecord(null);
           setIsRecordModalOpen(true);
         }}
         onOpenMasterData={() => {
-          if (currentUser?.role === 'admin') {
-            setIsMasterDataOpen(true);
-          }
+          if (isAdmin) setIsMasterDataOpen(true);
+        }}
+        onOpenUserManagement={() => {
+          if (isAdmin) setIsUserManagementOpen(true);
         }}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
         onOpenUserGuide={() => setIsUserGuideOpen(true)}
+        onOpenChangePassword={() => setIsChangePasswordOpen(true)}
         onManualSync={handleManualFullSync}
+        onExportExcel={handleExportExcel}
         onLogout={handleLogout}
       />
 
-      {/* Quota Exceeded Notification Banner */}
-      {isQuotaExceeded && (
-        <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-b border-amber-300 px-4 sm:px-6 lg:px-8 py-3.5">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center gap-2.5 text-xs sm:text-sm text-amber-950 font-medium">
-              <Database className="w-5 h-5 shrink-0 text-amber-600 mt-0.5 sm:mt-0" />
-              <span>
-                <strong className="font-bold text-amber-950">แจ้งเตือนโควตาการอ่านข้อมูล Firestore (Free Tier) ถึงขีดจำกัดประจำวันแล้ว:</strong> ระบบกำลังทำงานด้วยข้อมูล Local Cache อัตโนมัติ โดยโควตาจะรีเซ็ตในวันถัดไป หรือสามารถอัปเกรดเพื่อปลดล็อกได้ที่ Firebase Console
-              </span>
-            </div>
-            <a
-              id="banner-firestore-upgrade-link"
-              href="https://console.firebase.google.com/project/gen-lang-client-0914990962/firestore/databases/ai-studio-renazzoautolab-63911943-8222-4a99-99f5-67bdf9e55f99/data?openUpgradeDialog=true"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shrink-0 shadow-xs transition-colors"
-            >
-              <span>เปิด Firebase Console</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* Viewer Notification Banner */}
-      {isViewer && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-200/80 px-4 sm:px-6 lg:px-8 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 text-xs sm:text-sm text-amber-900 font-medium">
-              <span className="flex h-2.5 w-2.5 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-              </span>
-              <span>
-                <strong className="font-bold text-amber-950">สถานะ: บัญชีผู้เข้าชม (Viewer - ดูได้อย่างเดียว)</strong> — บัญชีของคุณยังไม่ได้รับการอนุมัติสิทธิ์การบันทึกข้อมูล สามารถค้นหาและดูข้อมูลได้ หากต้องการบันทึกรถล้าง กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อปรับสิทธิ์
-              </span>
-            </div>
-            <button
-              id="banner-open-guide-btn"
-              onClick={() => setIsUserGuideOpen(true)}
-              className="px-3 py-1.5 bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold shrink-0 shadow-2xs transition-colors flex items-center gap-1.5"
-            >
-              <span>📖 ดูคู่มือการใช้งาน</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main View Container */}
+      {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {canViewDashboard && activeTab === 'dashboard' ? (
           <DashboardView
@@ -765,10 +649,6 @@ export default function App() {
             filterState={filterState}
             onFilterChange={(newFilters) => setFilterState(prev => ({ ...prev, ...newFilters }))}
             onOpenNewRecord={() => {
-              if (!canAddRecord) {
-                showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
-                return;
-              }
               setEditingRecord(null);
               setIsRecordModalOpen(true);
             }}
@@ -784,21 +664,19 @@ export default function App() {
             onEditRecord={handleEditRecordClick}
             onDeleteRecord={handleDeleteRecordClick}
             onOpenNewRecord={() => {
-              if (!canAddRecord) {
-                showToast('คุณอยู่ในสิทธิ์ผู้เข้าชม (ดูได้อย่างเดียว) ยังไม่สามารถบันทึกข้อมูลได้', 'info');
-                return;
-              }
               setEditingRecord(null);
               setIsRecordModalOpen(true);
             }}
             onOpenSheetLink={sheetConfig?.spreadsheetUrl}
             onManualSync={handleManualFullSync}
+            onPullFromSheet={handlePullFromSheet}
+            onExportExcel={handleExportExcel}
             isSyncing={isSyncing}
           />
         )}
       </main>
 
-      {/* Mobile Floating Action Button (FAB) for fast car wash recording */}
+      {/* Mobile Floating Action Button (FAB) */}
       {canAddRecord && (
         <button
           id="mobile-quick-log-fab"
@@ -807,7 +685,7 @@ export default function App() {
             setIsRecordModalOpen(true);
           }}
           aria-label="ลงข้อมูลรถใหม่"
-          className="md:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-sky-600 to-teal-500 text-white shadow-xl shadow-sky-600/30 flex items-center justify-center active:scale-95 transition-transform"
+          className="md:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-sky-600 to-teal-500 text-white shadow-xl shadow-sky-600/30 flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
         >
           <Plus className="w-7 h-7 stroke-[2.5]" />
         </button>
@@ -831,7 +709,7 @@ export default function App() {
       />
 
       {/* Admin Master Data Modal */}
-      {currentUser.role === 'admin' && (
+      {isAdmin && (
         <MasterDataModal
           isOpen={isMasterDataOpen}
           onClose={() => setIsMasterDataOpen(false)}
@@ -848,29 +726,58 @@ export default function App() {
         />
       )}
 
-      {/* Google Sheets Connection Modal */}
+      {/* Admin User Management Modal */}
+      {isAdmin && (
+        <UserManagementModal
+          isOpen={isUserManagementOpen}
+          onClose={() => setIsUserManagementOpen(false)}
+          users={userProfiles}
+          currentUser={currentUser}
+          onAddUser={handleAddUser}
+          onUpdateUser={handleUpdateUser}
+          onResetPassword={handleResetPassword}
+          onDeleteUser={handleDeleteUser}
+          onSyncUsersToSheet={async () => {
+            if (sheetConfig?.webAppUrl) {
+              await autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, userProfiles);
+              showToast('ซิงค์ข้อมูลผู้ใช้ไปยังแท็บ Users ใน Google Sheet เรียบร้อยแล้ว', 'success');
+            } else {
+              showToast('กรุณาตั้งค่า Google Sheet กลางก่อน', 'info');
+            }
+          }}
+          isSyncing={isSyncing}
+        />
+      )}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        currentUser={currentUser}
+        onChangePassword={handleChangePassword}
+      />
+
+      {/* Google Sheets Web App Connection Modal */}
       <SheetSettingsModal
         isOpen={isSheetSettingsOpen}
         onClose={() => setIsSheetSettingsOpen(false)}
         sheetConfig={sheetConfig}
-        onConnectOrCreate={handleConnectOrCreateSheet}
-        onConnectCustomSheet={handleConnectCustomSheet}
+        onConnectWebApp={handleConnectWebApp}
         onFullSync={handleManualFullSync}
         onPullFromSheet={handlePullFromSheet}
+        onExportExcel={handleExportExcel}
         isSyncing={isSyncing}
-        hasOAuthToken={hasAuthToken}
-        onReauthGoogle={handleGoogleSignIn}
-        isAdmin={currentUser.role === 'admin'}
+        isAdmin={isAdmin}
       />
 
       {/* User Guide Modal */}
       <UserGuideModal
         isOpen={isUserGuideOpen}
         onClose={() => setIsUserGuideOpen(false)}
-        userRole={currentUser?.role}
+        userRole={currentUser.role}
       />
 
-      {/* Confirmation Dialog for Destructive / Editing actions */}
+      {/* Confirmation Dialog */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}

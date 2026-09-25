@@ -56,24 +56,42 @@ export const INITIAL_EMPLOYEES: Employee[] = [
   { id: 'e9', name: 'ธีรเดช เจริญสุข', nickname: 'เดช', isActive: true, branchId: 'b5' }
 ];
 
-export const DEFAULT_ADMIN_USERS: UserProfile[] = [
+export const DEFAULT_USERS: UserProfile[] = [
   {
-    uid: 'admin-jira',
+    uid: 'user-admin-01',
+    email: 'admin@carcare.com',
+    displayName: 'ผู้ดูแลระบบ (Admin)',
+    role: 'Admin',
+    password: 'admin1234',
+    createdAt: '2026-01-01T00:00:00Z',
+    lastLoginAt: '2026-09-25T08:00:00Z'
+  },
+  {
+    uid: 'user-acc-01',
+    email: 'accounting@carcare.com',
+    displayName: 'เจ้าหน้าที่บัญชี (Accounting)',
+    role: 'Accounting',
+    password: 'acc1234',
+    createdAt: '2026-01-01T00:00:00Z',
+    lastLoginAt: '2026-09-25T08:30:00Z'
+  },
+  {
+    uid: 'user-off-01',
+    email: 'officer@carcare.com',
+    displayName: 'เจ้าหน้าที่ธุรการ (Officer)',
+    role: 'Administration Officer',
+    password: 'officer1234',
+    createdAt: '2026-01-01T00:00:00Z',
+    lastLoginAt: '2026-09-25T09:00:00Z'
+  },
+  {
+    uid: 'user-jira-01',
     email: 'jira.a@premium-auto.co.th',
-    displayName: 'Jira A. (Admin)',
-    role: 'admin',
-  },
-  {
-    uid: 'admin-default',
-    email: 'admin@premium-auto.co.th',
-    displayName: 'System Administrator',
-    role: 'admin',
-  },
-  {
-    uid: 'sup-demo',
-    email: 'supervisor@premium-auto.co.th',
-    displayName: 'หัวหน้างาน (Supervisor)',
-    role: 'supervisor',
+    displayName: 'Jira A. (System Admin)',
+    role: 'Admin',
+    password: 'admin1234',
+    createdAt: '2026-01-01T00:00:00Z',
+    lastLoginAt: '2026-09-25T09:15:00Z'
   }
 ];
 
@@ -90,11 +108,11 @@ export const INITIAL_SAMPLE_RECORDS: CarWashRecord[] = [
     branch: 'สาขาสำนักงานใหญ่ (Headquarters)',
     staffNames: ['สมชาย แจ่มใส', 'วิชัย ภักดี'],
     notes: 'ตรวจเช็คความเรียบร้อยรอบคัน เคลือบเงาสีพร้อมส่งมอบลูกค้า VIP',
-    loggedBy: 'jira.a@premium-auto.co.th',
-    loggedByEmail: 'jira.a@premium-auto.co.th',
+    loggedBy: 'admin@carcare.com',
+    loggedByEmail: 'admin@carcare.com',
     createdAt: '2026-09-19T08:30:00Z',
     updatedAt: '2026-09-19T08:30:00Z',
-    syncedToSheet: false
+    syncedToSheet: true
   },
   {
     id: 'CW-202609-002',
@@ -108,11 +126,11 @@ export const INITIAL_SAMPLE_RECORDS: CarWashRecord[] = [
     branch: 'สาขาพระราม 9 (Rama 9)',
     staffNames: ['อนุรักษ์ มั่นคง', 'ธนกฤต เจริญผล'],
     notes: 'ล้างทำความสะอาดภายนอกและดูดฝุ่นภายในอย่างละเอียดก่อนส่งมอบ',
-    loggedBy: 'jira.a@premium-auto.co.th',
-    loggedByEmail: 'jira.a@premium-auto.co.th',
+    loggedBy: 'officer@carcare.com',
+    loggedByEmail: 'officer@carcare.com',
     createdAt: '2026-09-19T09:15:00Z',
     updatedAt: '2026-09-19T09:15:00Z',
-    syncedToSheet: false
+    syncedToSheet: true
   },
   {
     id: 'CW-202609-003',
@@ -126,11 +144,11 @@ export const INITIAL_SAMPLE_RECORDS: CarWashRecord[] = [
     branch: 'สาขาสาทร (Sathorn)',
     staffNames: ['ภาณุพงศ์ ศรีสุข'],
     notes: 'รถไม่มีป้ายทะเบียน (ใช้เลข VIN) ล้างหลังตรวจเช็คระยะ 20,000 กม.',
-    loggedBy: 'staff@premium-auto.co.th',
-    loggedByEmail: 'staff@premium-auto.co.th',
+    loggedBy: 'officer@carcare.com',
+    loggedByEmail: 'officer@carcare.com',
     createdAt: '2026-09-19T10:00:00Z',
     updatedAt: '2026-09-19T10:00:00Z',
-    syncedToSheet: false
+    syncedToSheet: true
   },
   {
     id: 'CW-202609-004',
@@ -144,11 +162,11 @@ export const INITIAL_SAMPLE_RECORDS: CarWashRecord[] = [
     branch: 'สาขาบางนา (Bangna)',
     staffNames: ['เอกชัย ชูเกียรติ', 'กิตติศักดิ์ บุญเรือง'],
     notes: 'ขัดเคลือบสีเตรียมส่งมอบรถใหม่ป้ายแดง',
-    loggedBy: 'jira.a@premium-auto.co.th',
-    loggedByEmail: 'jira.a@premium-auto.co.th',
+    loggedBy: 'accounting@carcare.com',
+    loggedByEmail: 'accounting@carcare.com',
     createdAt: '2026-09-18T13:45:00Z',
     updatedAt: '2026-09-18T13:45:00Z',
-    syncedToSheet: false
+    syncedToSheet: true
   },
   {
     id: 'CW-202609-005',
@@ -162,10 +180,10 @@ export const INITIAL_SAMPLE_RECORDS: CarWashRecord[] = [
     branch: 'สาขาสำนักงานใหญ่ (Headquarters)',
     staffNames: ['สมชาย แจ่มใส'],
     notes: 'ล้างทำความสะอาดทั่วไปสำหรับรถเข้าซ่อมบำรุง',
-    loggedBy: 'staff@premium-auto.co.th',
-    loggedByEmail: 'staff@premium-auto.co.th',
+    loggedBy: 'admin@carcare.com',
+    loggedByEmail: 'admin@carcare.com',
     createdAt: '2026-09-18T15:20:00Z',
     updatedAt: '2026-09-18T15:20:00Z',
-    syncedToSheet: false
+    syncedToSheet: true
   }
 ];

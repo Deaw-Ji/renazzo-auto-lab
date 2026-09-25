@@ -20,7 +20,6 @@ export interface CarWashRecord {
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   syncedToSheet?: boolean;
-  sheetRowIndex?: number; // Row index in Google Sheet for quick update/delete
 }
 
 export interface CarColor {
@@ -51,24 +50,39 @@ export interface Employee {
   isActive: boolean;
 }
 
-export type UserRole = 'admin' | 'supervisor' | 'staff' | 'viewer';
+// 3 RBAC Roles requested by user: Admin, Accounting, Administration Officer
+export type UserRole = 'Admin' | 'Accounting' | 'Administration Officer';
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  photoURL?: string;
   role: UserRole;
+  password?: string; // Stored for internal authentication
+  createdAt: string; // ISO string
+  lastLoginAt?: string; // ISO string
+  photoURL?: string;
   allowedBranches?: string[]; // empty means all branches
 }
 
 export interface GoogleSheetConfig {
-  spreadsheetId: string;
-  spreadsheetUrl: string;
-  sheetName: string;
+  webAppUrl: string; // Google Apps Script Web App URL (doGet / doPost)
+  spreadsheetUrl?: string; // Direct link to open Google Sheet
+  isConnected: boolean;
   lastSyncedAt?: string;
   autoSync: boolean;
-  isConnected: boolean;
+  tabs?: {
+    jobs: string;
+    users: string;
+    settings: string;
+  };
+}
+
+export interface MasterSettingsData {
+  colors: CarColor[];
+  branches: Branch[];
+  brands: CarBrand[];
+  employees: Employee[];
 }
 
 export interface FilterState {

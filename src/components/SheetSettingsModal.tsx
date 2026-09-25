@@ -8,24 +8,26 @@ import {
   AlertCircle,
   Database,
   Link2,
-  ShieldCheck,
-  Users,
   Copy,
-  Check
+  Check,
+  Code2,
+  Download,
+  ShieldCheck,
+  ArrowDownToLine,
+  ArrowUpFromLine
 } from 'lucide-react';
-import { GoogleSheetConfig } from '../types';
+import { GoogleSheetConfig, CarWashRecord, UserProfile, MasterSettingsData } from '../types';
+import { APPS_SCRIPT_TEMPLATE } from '../lib/googleSheetsService';
 
 interface SheetSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   sheetConfig: GoogleSheetConfig | null;
-  onConnectOrCreate: () => Promise<void>;
-  onConnectCustomSheet: (urlOrId: string) => Promise<void>;
+  onConnectWebApp: (url: string) => Promise<void>;
   onFullSync: () => Promise<void>;
   onPullFromSheet: () => Promise<void>;
+  onExportExcel: () => void;
   isSyncing: boolean;
-  hasOAuthToken: boolean;
-  onReauthGoogle: () => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -33,88 +35,68 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
   isOpen,
   onClose,
   sheetConfig,
-  onConnectOrCreate,
-  onConnectCustomSheet,
+  onConnectWebApp,
   onFullSync,
   onPullFromSheet,
+  onExportExcel,
   isSyncing,
-  hasOAuthToken,
-  onReauthGoogle,
   isAdmin
 }) => {
-  const [customSheetInput, setCustomSheetInput] = useState('');
+  const [webAppUrlInput, setWebAppUrlInput] = useState(sheetConfig?.webAppUrl || '');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleConnect = async () => {
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    try {
-      if (!hasOAuthToken) {
-        await onReauthGoogle();
-      }
-      await onConnectOrCreate();
-      setSuccessMessage('สร้างและเชื่อมต่อ Master Google Sheet กลางสำเร็จแล้ว! ทุกคนในระบบจะใช้ชีตนี้ร่วมกัน');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'ไม่สามารถเชื่อมต่อ Google Sheet ได้');
-    }
-  };
-
-  const handleCustomConnect = async (e: React.FormEvent) => {
+  const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customSheetInput.trim()) return;
+    if (!webAppUrlInput.trim()) return;
     setErrorMessage(null);
     setSuccessMessage(null);
+
     try {
-      if (!hasOAuthToken) {
-        await onReauthGoogle();
-      }
-      await onConnectCustomSheet(customSheetInput.trim());
-      setSuccessMessage('เชื่อมต่อกับ Master Google Sheet ที่ระบุสำเร็จแล้ว! บันทึกเป็นชีตกลางของระบบเรียบร้อย');
-      setCustomSheetInput('');
+      await onConnectWebApp(webAppUrlInput.trim());
+      setSuccessMessage('เชื่อมต่อ Google Sheet และดึงข้อมูลเดิมที่มีอยู่เข้ามาในระบบเรียบร้อยแล้ว!');
     } catch (err: any) {
-      setErrorMessage(err.message || 'ไม่สามารถเชื่อมต่อชีตที่ระบุได้');
+      setErrorMessage(err.message || 'ไม่สามารถเชื่อมต่อ Google Sheets Web App ได้');
     }
   };
 
-  const handlePush = async () => {
+  const handleManualPush = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
       await onFullSync();
-      setSuccessMessage('ส่งข้อมูลทั้งหมดขึ้น Google Sheet กลางสำเร็จแล้ว!');
+      setSuccessMessage('ส่งข้อมูลทั้งหมดขึ้น 3 แท็บ (Jobs, Users, Settings) ใน Google Sheet สำเร็จแล้ว!');
     } catch (err: any) {
       setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล');
     }
   };
 
-  const handlePull = async () => {
+  const handleManualPull = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
       await onPullFromSheet();
-      setSuccessMessage('ดึงข้อมูลล่าสุดจาก Google Sheet เรียบร้อยแล้ว!');
+      setSuccessMessage('ดึงข้อมูลล่าสุดจาก Google Sheet ทั้ง 3 แท็บเรียบร้อยแล้ว!');
     } catch (err: any) {
       setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล');
     }
   };
 
-  const handleCopyLink = () => {
-    if (sheetConfig?.spreadsheetUrl) {
-      navigator.clipboard.writeText(sheetConfig.spreadsheetUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150 font-['Sarabun',sans-serif]">
       <div 
         id="sheet-settings-modal-container"
-        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col"
+        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[90vh]"
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
@@ -124,10 +106,10 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">
-                Google Sheets กลาง (Master Sheet)
+                ตั้งค่า Google Sheets กลาง (Web App API)
               </h2>
               <p className="text-xs text-slate-500">
-                ซิงค์ข้อมูลร่วมกันระหว่างพนักงานและผู้ดูแลระบบ
+                เชื่อมต่อและจัดเก็บข้อมูลแยก 3 แท็บ: 'Jobs', 'Users', 'Settings_MasterData'
               </p>
             </div>
           </div>
@@ -140,16 +122,16 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+        <div className="p-6 space-y-5 overflow-y-auto flex-1">
           {errorMessage && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm flex items-start gap-2">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm flex items-start gap-2 animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs sm:text-sm flex items-start gap-2">
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs sm:text-sm flex items-start gap-2 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{successMessage}</span>
             </div>
@@ -158,148 +140,171 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
           {/* Connection Status Box */}
           <div className={`p-4 rounded-2xl border ${
             sheetConfig?.isConnected 
-              ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
-              : 'bg-amber-50/60 border-amber-200 text-amber-900'
+              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+              : 'bg-amber-50/70 border-amber-200 text-amber-950'
           }`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className={`w-3 h-3 rounded-full ${sheetConfig?.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
                 <span className="font-bold text-sm">
-                  {sheetConfig?.isConnected ? 'เชื่อมต่อ Master Google Sheet แล้ว' : 'ยังไม่ได้เชื่อมต่อ Master Google Sheet'}
+                  {sheetConfig?.isConnected ? 'เชื่อมต่อ Google Sheet กลางเรียบร้อย' : 'ยังไม่ได้เชื่อมต่อ Google Sheet'}
                 </span>
               </div>
-              {sheetConfig?.isConnected && (
-                <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Users className="w-3 h-3" /> แชร์ให้ทุกคนในระบบ
-                </span>
-              )}
+              <span className="text-[11px] font-semibold bg-emerald-100/90 text-emerald-800 px-2 py-0.5 rounded-md">
+                3 แท็บ: Jobs | Users | Settings
+              </span>
             </div>
 
             {sheetConfig?.isConnected ? (
               <div className="space-y-2 mt-3 text-xs">
                 <div>
-                  <span className="text-slate-500">Spreadsheet ID: </span>
-                  <span className="font-mono font-semibold text-slate-800 break-all">{sheetConfig.spreadsheetId}</span>
+                  <span className="text-slate-500">Web App URL: </span>
+                  <span className="font-mono font-medium text-slate-800 break-all">{sheetConfig.webAppUrl}</span>
                 </div>
                 <div>
                   <span className="text-slate-500">ซิงค์ล่าสุด: </span>
                   <span className="font-mono text-slate-700">
-                    {sheetConfig.lastSyncedAt ? new Date(sheetConfig.lastSyncedAt).toLocaleString('th-TH') : 'กำลังทำงานอัตโนมัติ'}
+                    {sheetConfig.lastSyncedAt ? new Date(sheetConfig.lastSyncedAt).toLocaleString('th-TH') : 'พร้อมใช้งาน'}
                   </span>
-                </div>
-
-                <div className="pt-2 flex flex-wrap gap-2">
-                  <a
-                    href={sheetConfig.spreadsheetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-700 font-semibold text-xs hover:bg-emerald-50 transition-colors shadow-xs"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>เปิดดูใน Google Sheets</span>
-                  </a>
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'คัดลอกลิงก์แล้ว' : 'คัดลอกลิงก์ชีต'}</span>
-                  </button>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-amber-700 mt-1">
-                ระบบต้องการ Master Google Sheet กลาง 1 ไฟล์ เพื่อให้พนักงานทุกคนบันทึกและซิงค์ลงชีตเดียวกัน
+              <p className="text-xs text-amber-800 mt-1">
+                โปรดนำ Web App URL จาก Google Apps Script มาใส่เพื่อเชื่อมต่อและดึงข้อมูลเดิมมาแสดงผล
               </p>
             )}
           </div>
 
-          {/* Action Buttons for Connected Sheet */}
-          {sheetConfig?.isConnected && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                disabled={isSyncing}
-                onClick={handlePush}
-                className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>ซิงค์ข้อมูลทั้งหมดขึ้น Google Sheet</span>
-              </button>
+          {/* Sync & Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              disabled={isSyncing || !sheetConfig?.webAppUrl}
+              onClick={handleManualPull}
+              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-slate-200 transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <ArrowDownToLine className="w-4 h-4 text-sky-600" />
+              <span>ดึงข้อมูลล่าสุด (Pull)</span>
+            </button>
 
-              <button
-                type="button"
-                disabled={isSyncing}
-                onClick={handlePull}
-                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-200 transition-colors disabled:opacity-50"
-              >
-                <Database className="w-3.5 h-3.5 text-slate-600" />
-                <span>ดึงข้อมูลล่าสุดจาก Google Sheet</span>
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              disabled={isSyncing || !sheetConfig?.webAppUrl}
+              onClick={handleManualPush}
+              className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <ArrowUpFromLine className="w-4 h-4" />
+              <span>ส่งข้อมูลไป Sheet (Sync/Push)</span>
+            </button>
 
-          {/* Custom Sheet Link Input (Admin only or if not connected) */}
+            <button
+              type="button"
+              onClick={onExportExcel}
+              className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              title="ดาวน์โหลดข้อมูลทั้งหมดเป็นไฟล์ Excel (.xlsx) ครบ 3 แท็บ"
+            >
+              <Download className="w-4 h-4 text-emerald-600" />
+              <span>Export Excel (.xlsx)</span>
+            </button>
+          </div>
+
+          {/* Connect Input Form (Admin Only) */}
           {isAdmin && (
             <div className="pt-2 border-t border-slate-100">
               <h3 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
                 <Link2 className="w-4 h-4 text-slate-500" />
-                <span>ระบุ Google Sheet กลางด้วยลิงก์หรือ Spreadsheet ID</span>
+                <span>ระบุ Google Apps Script Web App URL (doGet / doPost)</span>
               </h3>
-              <form onSubmit={handleCustomConnect} className="space-y-2">
+              <form onSubmit={handleConnect} className="space-y-2">
                 <input
-                  type="text"
-                  value={customSheetInput}
-                  onChange={(e) => setCustomSheetInput(e.target.value)}
-                  placeholder="วางลิงก์ https://docs.google.com/spreadsheets/d/... หรือ ID"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-hidden"
+                  type="url"
+                  required
+                  value={webAppUrlInput}
+                  onChange={(e) => setWebAppUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-mono"
                 />
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    disabled={isSyncing || !customSheetInput.trim()}
-                    className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-40"
+                    disabled={isSyncing || !webAppUrlInput.trim()}
+                    className="flex-1 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
-                    ตั้งเป็น Master Sheet กลางของระบบ
+                    {isSyncing ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Database className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span>เชื่อมต่อและดึงข้อมูลเดิม (Fetch Existing Data)</span>
                   </button>
-                  {!sheetConfig?.isConnected && (
-                    <button
-                      type="button"
-                      disabled={isSyncing}
-                      onClick={handleConnect}
-                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-40"
-                    >
-                      สร้างใหม่อัตโนมัติ
-                    </button>
-                  )}
                 </div>
               </form>
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                💡 <strong>สำคัญมาก:</strong> เมื่อกดเชื่อมต่อ ระบบจะ <em>อ่านข้อมูลเดิมที่มีอยู่ใน Google Sheet ก่อนเสมอ</em> และนำมาแสดงผลในระบบโดยไม่เขียนทับข้อมูลเดิม
+              </p>
             </div>
           )}
 
-          {/* Sharing Instructions */}
-          <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-100 text-xs text-slate-600 space-y-2">
-            <div className="font-bold text-sky-950 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-sky-600" />
-              <span>วิธีแชร์ให้พนักงานทุกคนใช้งานไฟล์เดียวกัน</span>
+          {/* Google Apps Script Code Drawer & Instructions */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <Code2 className="w-4 h-4 text-sky-600" />
+                <span>โค้ด Google Apps Script (Code.gs) สำหรับสร้าง 3 แท็บอัตโนมัติ</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode ? 'คัดลอกโค้ดแล้ว!' : 'คัดลอกโค้ด'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCode(!showCode)}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold"
+                >
+                  {showCode ? 'ซ่อนโค้ด' : 'ดูโค้ด'}
+                </button>
+              </div>
             </div>
+
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600 leading-relaxed">
-              <li>เปิด Google Sheet ของคุณขึ้นมา</li>
-              <li>กดปุ่ม <strong>"แชร์ (Share)"</strong> มุมขวาบนของ Google Sheet</li>
-              <li>เปลี่ยนสิทธิ์เป็น <strong>"ทุกคนที่มีลิงก์ (Anyone with the link)"</strong> หรือใส่อีเมลพนักงาน แล้วเลือกเป็น <strong>"ผู้แก้ไข (Editor)"</strong></li>
-              <li>เพียงเท่านี้ เมื่อพนักงานเข้าสู่ระบบ ทุกคนจะบันทึกข้อมูลลงไฟล์เดียวกัน 100% ครับ</li>
+              <li>เปิด Google Sheet ของท่าน &rarr; ไปที่เมนู <strong>ส่วนขยาย (Extensions)</strong> &gt; <strong>Apps Script</strong></li>
+              <li>วางโค้ดชุดนี้ลงไปแทนที่ของเดิม &rarr; กดปุ่ม <strong>บันทึก (Save)</strong></li>
+              <li>กด <strong>ทำให้ใช้งานได้ (Deploy)</strong> &gt; <strong>การทำให้ใช้งานได้รายการใหม่ (New deployment)</strong> &gt; เลือกประเภท <strong>เว็บแอป (Web app)</strong></li>
+              <li>ตั้งค่า <em>ผู้ที่มีสิทธิ์เข้าถึง (Who has access)</em> เป็น <strong>"ทุกคน (Anyone)"</strong> แล้วกด Deploy</li>
+              <li>คัดลอก Web App URL มาใส่ในช่องด้านบนได้ทันทีครับ</li>
             </ol>
+
+            {showCode && (
+              <div className="relative mt-2">
+                <pre className="max-h-48 overflow-y-auto p-3 bg-slate-900 text-slate-100 rounded-xl text-[10px] font-mono leading-tight">
+                  {APPS_SCRIPT_TEMPLATE}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onExportExcel}
+            className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold hover:text-emerald-900"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export ข้อมูล 3 แท็บเป็น Excel (.xlsx)</span>
+          </button>
+
           <button
             onClick={onClose}
             className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors"
           >
-            ปิด
+            ปิดหน้าต่าง
           </button>
         </div>
       </div>

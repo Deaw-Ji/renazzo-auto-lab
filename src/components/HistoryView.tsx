@@ -1,22 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, 
-  Filter, 
   Trash2, 
   Edit3, 
   FileSpreadsheet, 
   Download, 
-  Calendar, 
   MapPin, 
-  Users, 
-  Sparkles, 
-  Car, 
-  Wrench,
-  AlertCircle,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  ArrowDownToLine,
+  ArrowUpFromLine
 } from 'lucide-react';
-import { CarWashRecord, Branch, UserProfile, FilterState, WashStatusType } from '../types';
+import { CarWashRecord, Branch, UserProfile, FilterState } from '../types';
 import { STATUS_CONFIGS, WASH_STATUS_OPTIONS } from '../lib/constants';
 
 interface HistoryViewProps {
@@ -30,6 +25,8 @@ interface HistoryViewProps {
   onOpenNewRecord: () => void;
   onOpenSheetLink?: string | null;
   onManualSync: () => void;
+  onPullFromSheet?: () => void;
+  onExportExcel?: () => void;
   isSyncing: boolean;
 }
 
@@ -44,13 +41,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   onOpenNewRecord,
   onOpenSheetLink,
   onManualSync,
+  onPullFromSheet,
+  onExportExcel,
   isSyncing
 }) => {
-  const isAdmin = currentUser?.role === 'admin';
-  const isSupervisor = currentUser?.role === 'supervisor';
-  const isStaff = currentUser?.role === 'staff';
-  const canAddRecord = isAdmin || isSupervisor || isStaff;
-  const canEditRecord = isAdmin || isSupervisor;
+  const isAdmin = currentUser?.role === 'Admin' || (currentUser?.role as any) === 'admin';
+  const isAccounting = currentUser?.role === 'Accounting' || (currentUser?.role as any) === 'accounting';
+  const isOfficer = currentUser?.role === 'Administration Officer' || (currentUser?.role as any) === 'officer';
+
+  // Rule: Delete is strictly restricted to Admin only! Other roles cannot see or use delete.
+  const canDeleteRecord = isAdmin;
+  const canEditRecord = true;
+  const canAddRecord = true;
+
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
 
   // Filtered records based on query, branch, month, status
@@ -82,55 +85,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     });
   }, [records, filterState.searchQuery, filterState.month, filterState.branch, activeStatusFilter]);
 
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (filteredRecords.length === 0) return;
-
-    const headers = [
-      'ID',
-      'วันที่',
-      'ทะเบียนรถ',
-      'เลขตัวถัง (VIN)',
-      'ยี่ห้อ',
-      'รุ่น',
-      'สี',
-      'สถานะการล้าง',
-      'สาขา',
-      'พนักงานผู้รับผิดชอบ',
-      'หมายเหตุ',
-      'ผู้บันทึก',
-      'วันที่บันทึก'
-    ];
-
-    const rows = filteredRecords.map(r => [
-      r.id,
-      r.date,
-      `"${r.licensePlate || '-'}"`,
-      `"${r.vinNumber || '-'}"`,
-      `"${r.brand}"`,
-      `"${r.model}"`,
-      `"${r.color}"`,
-      `"${r.washStatus}"`,
-      `"${r.branch}"`,
-      `"${r.staffNames.join(', ')}"`,
-      `"${(r.notes || '').replace(/"/g, '""')}"`,
-      `"${r.loggedBy}"`,
-      `"${r.createdAt}"`
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `carwash_records_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
-    <div id="history-view-root" className="space-y-6 pb-12">
+    <div id="history-view-root" className="space-y-6 pb-12 font-['Sarabun',sans-serif]">
       {/* Top Header & Search Bar */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -143,33 +99,67 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Pull from Google Sheet button */}
+            {onPullFromSheet && (
+              <button
+                type="button"
+                onClick={onPullFromSheet}
+                disabled={isSyncing}
+                title="ดึงข้อมูลล่าสุดจาก Google Sheets"
+                className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <ArrowDownToLine className="w-3.5 h-3.5 text-sky-600" />
+                <span>ดึงข้อมูล (Pull)</span>
+              </button>
+            )}
+
+            {/* Sync to Google Sheet button */}
+            <button
+              type="button"
+              onClick={onManualSync}
+              disabled={isSyncing}
+              title="ส่งข้อมูลไปยัง Google Sheets"
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {isSyncing ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+              ) : (
+                <ArrowUpFromLine className="w-3.5 h-3.5 text-emerald-600" />
+              )}
+              <span>ส่งข้อมูล (Sync)</span>
+            </button>
+
+            {/* Export Excel (.xlsx) button */}
+            {onExportExcel && (
+              <button
+                onClick={onExportExcel}
+                className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-colors whitespace-nowrap shadow-xs cursor-pointer"
+                title="ดาวน์โหลดไฟล์ Excel (.xlsx) ครบทั้ง 3 แท็บ"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Excel (.xlsx)</span>
+              </button>
+            )}
+
             {onOpenSheetLink && (
               <a
                 href={onOpenSheetLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden sm:flex px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 items-center gap-1.5 transition-colors whitespace-nowrap"
+                className="hidden xl:flex px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 items-center gap-1.5 transition-colors whitespace-nowrap"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>เปิด Google Sheet</span>
+                <span>เปิด Sheet</span>
                 <ExternalLink className="w-3 h-3 shrink-0" />
               </a>
             )}
-
-            <button
-              onClick={handleExportCSV}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-slate-600 shrink-0" />
-              <span>ส่งออก CSV</span>
-            </button>
 
             {canAddRecord && (
               <button
                 id="history-add-record-btn"
                 onClick={onOpenNewRecord}
-                className="hidden sm:flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 active:scale-98 text-white items-center gap-1.5 shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                className="hidden sm:flex px-3.5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:scale-98 text-white items-center gap-1.5 shadow-xs transition-colors whitespace-nowrap cursor-pointer"
               >
                 <span>+ เพิ่มรถล้าง</span>
               </button>
@@ -200,148 +190,130 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
           >
             <option value="all">ทุกสาขา (All Branches)</option>
-            {branches.map(b => (
-              <option key={b.id} value={b.name}>
-                {b.name}
-              </option>
+            {branches.filter(b => b.isActive).map(b => (
+              <option key={b.id} value={b.name}>{b.name}</option>
             ))}
           </select>
 
-          {/* Status Filter */}
-          <select
-            id="history-status-filter"
-            value={activeStatusFilter}
-            onChange={(e) => setActiveStatusFilter(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
-          >
-            <option value="all">ทุกสถานะการล้าง (All Statuses)</option>
-            {WASH_STATUS_OPTIONS.map(s => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          {/* Month Selector */}
+          {/* Month Filter */}
           <input
             id="history-month-filter"
             type="month"
             value={filterState.month === 'all' ? '' : filterState.month}
             onChange={(e) => onFilterChange({ month: e.target.value || 'all' })}
-            placeholder="เลือกเดือน"
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
           />
+
+          {/* Clear Filters Button */}
+          <button
+            onClick={() => {
+              onFilterChange({
+                searchQuery: '',
+                branch: 'all',
+                month: 'all',
+                status: 'all'
+              });
+              setActiveStatusFilter('all');
+            }}
+            className="w-full px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+          >
+            ล้างตัวกรองทั้งหมด
+          </button>
         </div>
 
-        {/* Quick Status Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-xs text-slate-400 mr-1">สถานะ:</span>
+        {/* Status Pills Filter */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+          <span className="text-xs font-semibold text-slate-500 mr-1">สถานะ:</span>
           <button
             onClick={() => setActiveStatusFilter('all')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               activeStatusFilter === 'all'
-                ? 'bg-slate-800 text-white'
+                ? 'bg-slate-900 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             ทั้งหมด ({records.length})
           </button>
-          {WASH_STATUS_OPTIONS.map((statusKey) => {
-            const cfg = STATUS_CONFIGS[statusKey];
-            const count = records.filter(r => r.washStatus === statusKey).length;
-            const isSelected = activeStatusFilter === statusKey;
+          {WASH_STATUS_OPTIONS.map((status) => {
+            const count = records.filter(r => r.washStatus === status).length;
+            const cfg = STATUS_CONFIGS[status] || STATUS_CONFIGS['Detailing New Car Deliver'];
             return (
               <button
-                key={statusKey}
-                onClick={() => setActiveStatusFilter(statusKey)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                  isSelected
-                    ? `${cfg.badgeBg} border ${cfg.badgeBorder} ring-1 ring-offset-0`
+                key={status}
+                onClick={() => setActiveStatusFilter(status)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  activeStatusFilter === status
+                    ? `${cfg.badgeBg} ${cfg.badgeText} ring-2 ring-sky-500 font-bold`
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${cfg.dotColor}`} />
-                <span>{statusKey} ({count})</span>
+                <span>{status}</span>
+                <span className="opacity-70 text-[10px]">({count})</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Records Listing: Desktop Table & Mobile Cards */}
+      {/* Records Table View (Desktop) & Card View (Mobile) */}
       {filteredRecords.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs">
-          <Car className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-700">ไม่พบรายการที่ตรงกับเงื่อนไข</h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            ลองปรับเปลี่ยนคำค้นหา หรือรีเซ็ตตัวกรองเพื่อดูรายการทั้งหมด
-          </p>
-          <button
-            onClick={() => {
-              onFilterChange({ searchQuery: '', branch: 'all', month: 'all' });
-              setActiveStatusFilter('all');
-            }}
-            className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
-          >
-            ล้างตัวกรองทั้งหมด
-          </button>
+          <p className="text-base font-bold text-slate-700">ไม่พบรายการข้อมูลที่ตรงกับเงื่อนไข</p>
+          <p className="text-xs text-slate-400 mt-1">ลองเปลี่ยนคำค้นหา หรือกด "ล้างตัวกรองทั้งหมด"</p>
         </div>
       ) : (
         <>
           {/* Desktop Table View */}
           <div className="hidden md:block bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold text-xs">
-                  <tr>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
                     <th className="py-3.5 px-4">วันที่ / ทะเบียน</th>
-                    <th className="py-3.5 px-4">ยี่ห้อ & รุ่น / สี</th>
+                    <th className="py-3.5 px-4">เลขตัวถัง (VIN)</th>
+                    <th className="py-3.5 px-4">ยี่ห้อ / รุ่น / สี</th>
                     <th className="py-3.5 px-4">สถานะการล้าง</th>
                     <th className="py-3.5 px-4">สาขา</th>
                     <th className="py-3.5 px-4">พนักงานผู้รับผิดชอบ</th>
                     <th className="py-3.5 px-4">หมายเหตุ</th>
-                    {canEditRecord && <th className="py-3.5 px-4 text-right">จัดการ</th>}
+                    <th className="py-3.5 px-4 text-right">การจัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredRecords.map((record) => {
                     const statusCfg = STATUS_CONFIGS[record.washStatus] || STATUS_CONFIGS['Detailing New Car Deliver'];
                     return (
-                      <tr key={record.id} className="hover:bg-slate-50/70 transition-colors">
-                        {/* Date & Plate / VIN */}
+                      <tr key={record.id} className="hover:bg-slate-50/60 transition-colors">
+                        {/* Date & Plate */}
                         <td className="py-3.5 px-4">
-                          <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                            {record.licensePlate ? (
-                              <span className="bg-slate-100 px-2 py-0.5 rounded-md font-mono text-xs font-bold text-slate-800 border border-slate-200">
-                                {record.licensePlate}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic text-xs">ไม่มีป้ายทะเบียน</span>
-                            )}
+                          <div className="font-bold text-slate-900 text-sm">
+                            {record.licensePlate || <span className="text-slate-400 italic text-xs">ไม่มีป้ายทะเบียน</span>}
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-1 font-mono">
-                            VIN: {record.vinNumber || '-'}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <div className="text-[11px] text-slate-400 font-medium">
                             {record.date}
                           </div>
                         </td>
 
-                        {/* Brand, Model & Color */}
+                        {/* VIN */}
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                          {record.vinNumber || '-'}
+                        </td>
+
+                        {/* Brand, Model, Color */}
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">
-                            {record.brand} <span className="font-medium text-slate-600">{record.model}</span>
+                          <div className="font-bold text-slate-800">
+                            {record.brand} {record.model}
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-full border border-slate-300 inline-block shrink-0" />
-                            <span>{record.color}</span>
+                          <div className="text-[11px] text-slate-500">
+                            {record.color || '-'}
                           </div>
                         </td>
 
-                        {/* Status Badge with distinct colors */}
+                        {/* Status */}
                         <td className="py-3.5 px-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${statusCfg.badgeBg} ${statusCfg.badgeBorder}`}>
-                            <span className={`w-2 h-2 rounded-full ${statusCfg.dotColor}`} />
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusCfg.badgeBg} ${statusCfg.badgeText} ${statusCfg.badgeBorder}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dotColor}`} />
                             <span>{record.washStatus}</span>
                           </span>
                         </td>
@@ -366,7 +338,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         </td>
 
                         {/* Notes */}
-                        <td className="py-3.5 px-4 text-xs text-slate-600 max-w-[220px]">
+                        <td className="py-3.5 px-4 text-xs text-slate-600 max-w-[200px]">
                           {record.notes ? (
                             <span className="line-clamp-2" title={record.notes}>
                               {record.notes}
@@ -376,31 +348,31 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           )}
                         </td>
 
-                        {/* Action buttons (Admin & Supervisor) */}
-                        {canEditRecord && (
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              id={`edit-record-btn-${record.id}`}
+                              onClick={() => onEditRecord(record)}
+                              title="แก้ไขรายการ"
+                              className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+
+                            {/* CRITICAL: Delete button is STRICTLY ONLY VISIBLE to Admin! */}
+                            {canDeleteRecord && (
                               <button
-                                id={`edit-record-btn-${record.id}`}
-                                onClick={() => onEditRecord(record)}
-                                title="แก้ไขรายการ"
-                                className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+                                id={`delete-record-btn-${record.id}`}
+                                onClick={() => onDeleteRecord(record)}
+                                title="ลบรายการ (เฉพาะ Admin เท่านั้น)"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               >
-                                <Edit3 className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
-                              {isAdmin && (
-                                <button
-                                  id={`delete-record-btn-${record.id}`}
-                                  onClick={() => onDeleteRecord(record)}
-                                  title="ลบรายการ (Admin)"
-                                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        )}
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -447,7 +419,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
                   <div className="bg-slate-50 rounded-xl p-2.5 text-xs space-y-1">
                     <div className="font-bold text-slate-800">
-                      {record.brand} {record.model} • <span className="font-normal text-slate-600">{record.color}</span>
+                      {record.brand} {record.model} • <span className="font-normal text-slate-600">{record.color || '-'}</span>
                     </div>
                     <div className="text-slate-500 flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-slate-400" />
@@ -476,26 +448,26 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     </div>
                   )}
 
-                  {canEditRecord && (
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => onEditRecord(record)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>แก้ไข</span>
+                    </button>
+
+                    {/* CRITICAL: Mobile Delete is STRICTLY ONLY VISIBLE to Admin! */}
+                    {canDeleteRecord && (
                       <button
-                        onClick={() => onEditRecord(record)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                        onClick={() => onDeleteRecord(record)}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>แก้ไข</span>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>ลบ</span>
                       </button>
-                      {isAdmin && (
-                        <button
-                          onClick={() => onDeleteRecord(record)}
-                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>ลบ</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })}

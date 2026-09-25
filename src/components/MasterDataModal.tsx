@@ -12,7 +12,9 @@ import {
   Check, 
   AlertCircle,
   Save,
-  RotateCcw
+  RotateCcw,
+  KeyRound,
+  Lock
 } from 'lucide-react';
 import { 
   CarColor, 
@@ -73,7 +75,11 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
 
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<UserRole>('staff');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('Administration Officer');
+  const [newUserPassword, setNewUserPassword] = useState('admin1234');
+  const [resetUser, setResetUser] = useState<UserProfile | null>(null);
+  const [resetPasswordInput, setResetPasswordInput] = useState('');
+  const [userToast, setUserToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Editing States for Existing Items
   const [editingColorId, setEditingColorId] = useState<string | null>(null);
@@ -95,7 +101,7 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
 
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editUserName, setEditUserName] = useState('');
-  const [editUserRole, setEditUserRole] = useState<UserRole>('staff');
+  const [editUserRole, setEditUserRole] = useState<UserRole>('Administration Officer');
 
   if (!isOpen) return null;
 
@@ -264,15 +270,48 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserEmail.trim()) return;
+    const cleanEmail = newUserEmail.trim().toLowerCase();
+    if (userProfiles.some(u => u.email.toLowerCase() === cleanEmail)) {
+      setUserToast({ message: 'อีเมลนี้มีอยู่ในระบบแล้ว', type: 'error' });
+      setTimeout(() => setUserToast(null), 3000);
+      return;
+    }
     const newUser: UserProfile = {
       uid: `u_${Date.now()}`,
-      email: newUserEmail.trim().toLowerCase(),
-      displayName: newUserName.trim() || newUserEmail.trim(),
-      role: newUserRole
+      email: cleanEmail,
+      displayName: newUserName.trim() || cleanEmail.split('@')[0],
+      role: newUserRole,
+      password: newUserPassword.trim() || 'admin1234',
+      createdAt: new Date().toISOString()
     };
     onUpdateUserProfiles([...userProfiles, newUser]);
     setNewUserEmail('');
     setNewUserName('');
+    setNewUserPassword('admin1234');
+    setUserToast({ message: `เพิ่มผู้ใช้ ${newUser.displayName} เรียบร้อยแล้ว`, type: 'success' });
+    setTimeout(() => setUserToast(null), 3000);
+  };
+
+  const handleResetUserPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetUser) return;
+    if (!resetPasswordInput || resetPasswordInput.trim().length < 4) {
+      setUserToast({ message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร', type: 'error' });
+      setTimeout(() => setUserToast(null), 3000);
+      return;
+    }
+
+    onUpdateUserProfiles(
+      userProfiles.map(u => u.uid === resetUser.uid ? {
+        ...u,
+        password: resetPasswordInput.trim()
+      } : u)
+    );
+
+    setUserToast({ message: `รีเซ็ตรหัสผ่านสำหรับ ${resetUser.displayName || resetUser.email} สำเร็จแล้ว`, type: 'success' });
+    setResetUser(null);
+    setResetPasswordInput('');
+    setTimeout(() => setUserToast(null), 3500);
   };
 
   const startEditUser = (user: UserProfile) => {
@@ -920,116 +959,83 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
           {/* TAB 5: USERS & ROLE MANAGEMENT */}
           {activeTab === 'users' && (
             <div className="space-y-6">
+              {/* Toast message for user actions */}
+              {userToast && (
+                <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+                  userToast.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                }`}>
+                  {userToast.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0" />}
+                  <span>{userToast.message}</span>
+                </div>
+              )}
+
               {/* Add User Role Form */}
               <form onSubmit={handleAddUser} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    กำหนดสิทธิ์ผู้ใช้งาน (Admin / Supervisor / Staff / Viewer)
+                    เพิ่มผู้ใช้งานใหม่และกำหนดสิทธิ์
                   </h4>
                   <span className="text-[11px] text-slate-500">
-                    * ผู้เข้าสู่ระบบใหม่ที่ไม่ระบุไว้ จะได้รับสิทธิ์ Viewer (ดูได้อย่างเดียว) โดยอัตโนมัติ
+                    * รองรับ 3 บทบาท: Admin, Accounting, Administration Officer
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="email"
-                    required
-                    placeholder="อีเมล เช่น user@premium-auto.co.th"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ชื่อที่แสดง เช่น คุณจิรา"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
-                  <div className="flex items-center gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">อีเมลผู้ใช้ (Email)*</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="user@carcare.com"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">ชื่อที่แสดง (Display Name)*</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น สมชาย ใจดี"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">สิทธิ์การใช้งาน (Role)*</label>
                     <select
                       value={newUserRole}
                       onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     >
-                      <option value="staff">พนักงานทั่วไป (Staff - บันทึกข้อมูล)</option>
-                      <option value="supervisor">หัวหน้างาน (Supervisor - แดชบอร์ด)</option>
-                      <option value="admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม)</option>
-                      <option value="viewer">ผู้เข้าชม (Viewer - ดูอย่างเดียว)</option>
+                      <option value="Admin">ผู้ดูแลระบบ (Admin)</option>
+                      <option value="Accounting">ฝ่ายบัญชี (Accounting)</option>
+                      <option value="Administration Officer">เจ้าหน้าที่ธุรการ (Officer)</option>
                     </select>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>เพิ่ม</span>
-                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">รหัสผ่านเริ่มต้น*</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="อย่างน้อย 4 ตัว"
+                        value={newUserPassword}
+                        onChange={(e) => setNewUserPassword(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1 shadow-xs transition-colors shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>เพิ่ม</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </form>
-
-              {/* Pending Approvals Notice Section (if any users have role === 'viewer') */}
-              {userProfiles.some(u => u.role === 'viewer') && (
-                <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                      <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-                        ผู้ใช้งานที่รออนุมัติสิทธิ์ ({userProfiles.filter(u => u.role === 'viewer').length} ท่าน)
-                      </h4>
-                    </div>
-                    <span className="text-[11px] text-amber-800">
-                      คลิกปุ่มเพื่ออนุมัติสิทธิ์การบันทึกได้ทันที
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {userProfiles.filter(u => u.role === 'viewer').map((viewer) => (
-                      <div
-                        key={viewer.email}
-                        className="p-3 bg-white rounded-xl border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
-                      >
-                        <div>
-                          <div className="text-xs font-bold text-slate-800">
-                            {viewer.displayName || viewer.email}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-mono">
-                            {viewer.email}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                          <button
-                            onClick={() => handleRoleToggle(viewer.email, 'staff')}
-                            className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition-colors"
-                          >
-                            ✓ อนุมัติเป็น Staff
-                          </button>
-                          <button
-                            onClick={() => handleRoleToggle(viewer.email, 'supervisor')}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
-                          >
-                            ✓ อนุมัติเป็น Supervisor
-                          </button>
-                          <button
-                            onClick={() => handleRoleToggle(viewer.email, 'admin')}
-                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold transition-colors"
-                          >
-                            ✓ อนุมัติเป็น Admin
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(viewer.email)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors ml-1"
-                            title="ลบออก"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* User List with Edit & Delete */}
               <div className="space-y-2">
@@ -1038,10 +1044,6 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                 </div>
                 {userProfiles.map((user) => {
                   const isEditing = editingUserEmail?.toLowerCase() === user.email.toLowerCase();
-                  const isAdmin = user.role === 'admin';
-                  const isSupervisor = user.role === 'supervisor';
-                  const isStaff = user.role === 'staff';
-                  const isViewer = user.role === 'viewer';
 
                   if (isEditing) {
                     return (
@@ -1063,10 +1065,9 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                             onChange={(e) => setEditUserRole(e.target.value as UserRole)}
                             className="px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs focus:outline-none"
                           >
-                            <option value="staff">พนักงานทั่วไป (Staff - บันทึกข้อมูล)</option>
-                            <option value="supervisor">หัวหน้างาน (Supervisor - แดชบอร์ด)</option>
-                            <option value="admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม)</option>
-                            <option value="viewer">ผู้เข้าชม (Viewer - ดูอย่างเดียว รออนุมัติ)</option>
+                            <option value="Admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม/ลบข้อมูลได้)</option>
+                            <option value="Accounting">ฝ่ายบัญชี (Accounting - ดูสรุปยอด/ห้ามลบ)</option>
+                            <option value="Administration Officer">เจ้าหน้าที่ธุรการ (Officer - บันทึกงาน/ห้ามลบ)</option>
                           </select>
                         </div>
                         <div className="flex justify-end gap-2">
@@ -1088,6 +1089,10 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                     );
                   }
 
+                  const isAdmin = user.role === 'Admin';
+                  const isAccounting = user.role === 'Accounting';
+                  const isOfficer = user.role === 'Administration Officer';
+
                   return (
                     <div
                       key={user.email}
@@ -1100,31 +1105,25 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                               isAdmin
                                 ? 'bg-sky-50 text-sky-800 border-sky-200'
-                                : isSupervisor
+                                : isAccounting
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : isStaff
-                                ? 'bg-slate-100 text-slate-700 border-slate-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-300'
                             }`}
                           >
                             {isAdmin
                               ? 'ADMIN'
-                              : isSupervisor
-                              ? 'SUPERVISOR (DASHBOARD)'
-                              : isStaff
-                              ? 'STAFF'
-                              : 'VIEWER (รออนุมัติ)'}
+                              : isAccounting
+                              ? 'ACCOUNTING'
+                              : 'ADMINISTRATION OFFICER'}
                           </span>
                         </div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{user.email}</div>
                         <div className="text-[11px] text-slate-400 mt-1">
                           {isAdmin
-                            ? '• มีสิทธิ์เต็ม: ดู Dashboard + ข้อมูลรถ + จัดการข้อมูลพื้นฐาน'
-                            : isSupervisor
-                            ? '• ดู Dashboard + ดูประวัติและส่งออกข้อมูล (ไม่สามารถแก้ไขข้อมูลพื้นฐาน)'
-                            : isStaff
-                            ? '• บันทึกรถล้างและดูประวัติรายการ'
-                            : '• ดูรายการและค้นหาประวัติได้เท่านั้น (ไม่สามารถเพิ่มหรือแก้ไขข้อมูล)'}
+                            ? '• มีสิทธิ์เต็ม: ดู Dashboard + ข้อมูลรถ + ลบรายการ + จัดการผู้ใช้ & ตั้งค่า Google Sheet'
+                            : isAccounting
+                            ? '• ดู Dashboard สรุปยอด + ดูประวัติ + Export Excel (ไม่มีปุ่มลบรายการ)'
+                            : '• บันทึกรถล้างและแก้ไขประวัติรายการ (ไม่มีปุ่มลบรายการ)'}
                         </div>
                       </div>
 
@@ -1135,10 +1134,9 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                           onChange={(e) => handleRoleToggle(user.email, e.target.value as UserRole)}
                           className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                         >
-                          <option value="viewer">Viewer (ดูอย่างเดียว)</option>
-                          <option value="staff">Staff (บันทึกข้อมูล)</option>
-                          <option value="supervisor">Supervisor (แดชบอร์ด)</option>
-                          <option value="admin">Admin (ผู้ดูแลระบบ)</option>
+                          <option value="Admin">Admin (ผู้ดูแลระบบ)</option>
+                          <option value="Accounting">Accounting (ฝ่ายบัญชี)</option>
+                          <option value="Administration Officer">Officer (เจ้าหน้าที่ธุรการ)</option>
                         </select>
 
                         <button
@@ -1147,6 +1145,16 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                           title="แก้ไขชื่อและสิทธิ์"
                         >
                           <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setResetUser(user);
+                            setResetPasswordInput('');
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          title="รีเซ็ตรหัสผ่าน (Reset Password)"
+                        >
+                          <KeyRound className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user.email)}
@@ -1163,6 +1171,55 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Reset Password Mini Modal */}
+        {resetUser && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-2xs animate-in fade-in">
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-amber-600" />
+                  <h4 className="font-bold text-sm text-slate-800">รีเซ็ตรหัสผ่านผู้ใช้งาน</h4>
+                </div>
+                <button onClick={() => setResetUser(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600">
+                ตั้งรหัสผ่านใหม่สำหรับ: <strong className="text-slate-800">{resetUser.displayName || resetUser.email}</strong>
+                <br /><span className="text-slate-400 font-mono text-[11px]">{resetUser.email}</span>
+              </p>
+
+              <form onSubmit={handleResetUserPassword} className="space-y-3">
+                <input
+                  type="text"
+                  required
+                  value={resetPasswordInput}
+                  onChange={(e) => setResetPasswordInput(e.target.value)}
+                  placeholder="ระบุรหัสผ่านใหม่ (อย่างน้อย 4 ตัว)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 outline-none"
+                />
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setResetUser(null)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                  >
+                    บันทึกรหัสผ่านใหม่
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Modal Footer */}
         <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">

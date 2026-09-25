@@ -12,20 +12,20 @@ import {
   INITIAL_BRANCHES, 
   INITIAL_BRANDS, 
   INITIAL_EMPLOYEES, 
-  DEFAULT_ADMIN_USERS, 
+  DEFAULT_USERS, 
   INITIAL_SAMPLE_RECORDS 
 } from './initialData';
 
 const KEYS = {
-  RECORDS: 'carwash_records_v1',
-  COLORS: 'carwash_colors_v1',
-  BRANCHES: 'carwash_branches_v1',
-  BRANDS: 'carwash_brands_v1',
-  EMPLOYEES: 'carwash_employees_v1',
-  USER_ROLES: 'carwash_user_roles_v1',
-  SHEET_CONFIG: 'carwash_sheet_config_v1',
-  DEMO_SESSION: 'carwash_demo_session_v1',
-  SEEDED: 'carwash_seeded_v1'
+  RECORDS: 'carwash_records_v2',
+  COLORS: 'carwash_colors_v2',
+  BRANCHES: 'carwash_branches_v2',
+  BRANDS: 'carwash_brands_v2',
+  EMPLOYEES: 'carwash_employees_v2',
+  USERS: 'carwash_users_v2',
+  SHEET_CONFIG: 'carwash_sheet_config_v2',
+  CURRENT_USER: 'carwash_current_user_v2',
+  PULL_INITIALIZED: 'carwash_pull_initialized_v2'
 };
 
 export const storage = {
@@ -109,19 +109,25 @@ export const storage = {
     }
   },
 
-  getUserProfiles: (): UserProfile[] => {
+  getUsers: (): UserProfile[] => {
     try {
-      const data = localStorage.getItem(KEYS.USER_ROLES);
-      return data ? JSON.parse(data) : DEFAULT_ADMIN_USERS;
+      const data = localStorage.getItem(KEYS.USERS);
+      if (!data) return DEFAULT_USERS;
+      const parsed = JSON.parse(data);
+      // Ensure default admin exists
+      if (!parsed.some((u: UserProfile) => u.email === 'admin@carcare.com')) {
+        parsed.unshift(DEFAULT_USERS[0]);
+      }
+      return parsed;
     } catch {
-      return DEFAULT_ADMIN_USERS;
+      return DEFAULT_USERS;
     }
   },
-  saveUserProfiles: (users: UserProfile[]) => {
+  saveUsers: (users: UserProfile[]) => {
     try {
-      localStorage.setItem(KEYS.USER_ROLES, JSON.stringify(users));
+      localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     } catch (e) {
-      console.error('Failed to save user profiles', e);
+      console.error('Failed to save users', e);
     }
   },
 
@@ -145,38 +151,38 @@ export const storage = {
     }
   },
 
-  getDemoSession: (): UserProfile | null => {
+  getCurrentUser: (): UserProfile | null => {
     try {
-      const data = localStorage.getItem(KEYS.DEMO_SESSION);
+      const data = localStorage.getItem(KEYS.CURRENT_USER);
       return data ? JSON.parse(data) : null;
     } catch {
       return null;
     }
   },
-  saveDemoSession: (user: UserProfile | null) => {
+  saveCurrentUser: (user: UserProfile | null) => {
     try {
       if (user) {
-        localStorage.setItem(KEYS.DEMO_SESSION, JSON.stringify(user));
+        localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
       } else {
-        localStorage.removeItem(KEYS.DEMO_SESSION);
+        localStorage.removeItem(KEYS.CURRENT_USER);
       }
     } catch (e) {
-      console.error('Failed to save demo session', e);
+      console.error('Failed to save current user', e);
     }
   },
 
-  isSeeded: (): boolean => {
+  isPullInitialized: (): boolean => {
     try {
-      return localStorage.getItem(KEYS.SEEDED) === 'true';
+      return localStorage.getItem(KEYS.PULL_INITIALIZED) === 'true';
     } catch {
       return false;
     }
   },
-  setSeeded: (seeded: boolean = true) => {
+  setPullInitialized: (val: boolean = true) => {
     try {
-      localStorage.setItem(KEYS.SEEDED, String(seeded));
+      localStorage.setItem(KEYS.PULL_INITIALIZED, String(val));
     } catch (e) {
-      console.error('Failed to save seeded status', e);
+      console.error('Failed to save pull initialized flag', e);
     }
   }
 };
