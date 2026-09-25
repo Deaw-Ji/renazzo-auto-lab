@@ -417,10 +417,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               setResettingUser(u);
                               setResetNewPass('');
                             }}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
                             title="รีเซ็ตรหัสผ่านสำหรับผู้ใช้นี้"
                           >
-                            <KeyRound className="w-4 h-4" />
+                            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                            <span>รีเซ็ตรหัสผ่าน</span>
                           </button>
 
                           {!isCurrent && (

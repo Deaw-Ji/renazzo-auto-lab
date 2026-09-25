@@ -14,7 +14,9 @@ import {
   Save,
   RotateCcw,
   KeyRound,
-  Lock
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { 
   CarColor, 
@@ -102,6 +104,8 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editUserName, setEditUserName] = useState('');
   const [editUserRole, setEditUserRole] = useState<UserRole>('Administration Officer');
+  const [editUserNewPassword, setEditUserNewPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   if (!isOpen) return null;
 
@@ -302,15 +306,21 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
     }
 
     onUpdateUserProfiles(
-      userProfiles.map(u => u.uid === resetUser.uid ? {
-        ...u,
-        password: resetPasswordInput.trim()
-      } : u)
+      userProfiles.map(u => 
+        (u.uid === resetUser.uid || u.email.toLowerCase() === resetUser.email.toLowerCase()) ? {
+          ...u,
+          password: resetPasswordInput.trim()
+        } : u
+      )
     );
 
-    setUserToast({ message: `รีเซ็ตรหัสผ่านสำหรับ ${resetUser.displayName || resetUser.email} สำเร็จแล้ว`, type: 'success' });
+    setUserToast({ 
+      message: `รีเซ็ตรหัสผ่านสำหรับ ${resetUser.displayName || resetUser.email} เรียบร้อยแล้ว`, 
+      type: 'success' 
+    });
     setResetUser(null);
     setResetPasswordInput('');
+    setShowResetPassword(false);
     setTimeout(() => setUserToast(null), 3500);
   };
 
@@ -318,17 +328,30 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
     setEditingUserEmail(user.email);
     setEditUserName(user.displayName || '');
     setEditUserRole(user.role);
+    setEditUserNewPassword('');
   };
 
   const saveEditUser = (email: string) => {
     onUpdateUserProfiles(
-      userProfiles.map(u => u.email.toLowerCase() === email.toLowerCase() ? {
-        ...u,
-        displayName: editUserName.trim() || u.email,
-        role: editUserRole
-      } : u)
+      userProfiles.map(u => {
+        if (u.email.toLowerCase() === email.toLowerCase()) {
+          const updated: UserProfile = {
+            ...u,
+            displayName: editUserName.trim() || u.email,
+            role: editUserRole
+          };
+          if (editUserNewPassword.trim() && editUserNewPassword.trim().length >= 4) {
+            updated.password = editUserNewPassword.trim();
+          }
+          return updated;
+        }
+        return u;
+      })
     );
     setEditingUserEmail(null);
+    setEditUserNewPassword('');
+    setUserToast({ message: 'บันทึกการแก้ไขข้อมูลผู้ใช้เรียบร้อยแล้ว', type: 'success' });
+    setTimeout(() => setUserToast(null), 3000);
   };
 
   const handleRoleToggle = (email: string, newRole: UserRole) => {
@@ -1052,23 +1075,42 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                         className="p-4 rounded-2xl bg-sky-50/70 border-2 border-sky-400 space-y-3"
                       >
                         <div className="text-xs font-bold text-sky-800">กำลังแก้ไขข้อมูลสิทธิ์ผู้ใช้:</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={editUserName}
-                            onChange={(e) => setEditUserName(e.target.value)}
-                            placeholder="ชื่อที่แสดง"
-                            className="px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs font-bold focus:outline-none"
-                          />
-                          <select
-                            value={editUserRole}
-                            onChange={(e) => setEditUserRole(e.target.value as UserRole)}
-                            className="px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs focus:outline-none"
-                          >
-                            <option value="Admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม/ลบข้อมูลได้)</option>
-                            <option value="Accounting">ฝ่ายบัญชี (Accounting - ดูสรุปยอด/ห้ามลบ)</option>
-                            <option value="Administration Officer">เจ้าหน้าที่ธุรการ (Officer - บันทึกงาน/ห้ามลบ)</option>
-                          </select>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">ชื่อที่แสดง</label>
+                            <input
+                              type="text"
+                              value={editUserName}
+                              onChange={(e) => setEditUserName(e.target.value)}
+                              placeholder="ชื่อที่แสดง"
+                              className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs font-bold focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">สิทธิ์การใช้งาน (Role)</label>
+                            <select
+                              value={editUserRole}
+                              onChange={(e) => setEditUserRole(e.target.value as UserRole)}
+                              className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-xs focus:outline-none"
+                            >
+                              <option value="Admin">ผู้ดูแลระบบ (Admin - สิทธิ์เต็ม/ลบข้อมูลได้)</option>
+                              <option value="Accounting">ฝ่ายบัญชี (Accounting - ดูสรุปยอด/ห้ามลบ)</option>
+                              <option value="Administration Officer">เจ้าหน้าที่ธุรการ (Officer - บันทึกงาน/ห้ามลบ)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-amber-800 mb-1 flex items-center gap-1">
+                              <KeyRound className="w-3 h-3 text-amber-600" />
+                              <span>รีเซ็ตรหัสผ่านใหม่ (ไม่บังคับ)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={editUserNewPassword}
+                              onChange={(e) => setEditUserNewPassword(e.target.value)}
+                              placeholder="ระบุรหัสผ่านใหม่ (ว่างไว้ถ้าไม่เปลี่ยน)"
+                              className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono focus:outline-none"
+                            />
+                          </div>
                         </div>
                         <div className="flex justify-end gap-2">
                           <button
@@ -1127,7 +1169,7 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
                         {/* Quick Role Change Selector */}
                         <select
                           value={user.role}
@@ -1139,26 +1181,33 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
                           <option value="Administration Officer">Officer (เจ้าหน้าที่ธุรการ)</option>
                         </select>
 
+                        {/* Explicit Reset Password Action Button */}
                         <button
-                          onClick={() => startEditUser(user)}
-                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
-                          title="แก้ไขชื่อและสิทธิ์"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
+                          type="button"
                           onClick={() => {
                             setResetUser(user);
                             setResetPasswordInput('');
+                            setShowResetPassword(false);
                           }}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                          title="รีเซ็ตรหัสผ่าน (Reset Password)"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                          title="รีเซ็ตรหัสผ่านสำหรับผู้ใช้นี้"
                         >
-                          <KeyRound className="w-4 h-4" />
+                          <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>รีเซ็ตรหัสผ่าน</span>
                         </button>
+
+                        <button
+                          onClick={() => startEditUser(user)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-slate-600 hover:text-sky-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 rounded-xl text-xs font-semibold transition-colors"
+                          title="แก้ไขชื่อและสิทธิ์"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>แก้ไข</span>
+                        </button>
+
                         <button
                           onClick={() => handleDeleteUser(user.email)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition-colors"
                           title="ลบสิทธิ์ผู้ใช้นี้"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1174,46 +1223,105 @@ export const MasterDataModal: React.FC<MasterDataModalProps> = ({
 
         {/* Reset Password Mini Modal */}
         {resetUser && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-2xs animate-in fade-in">
-            <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 border border-slate-200 space-y-4">
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-2xs animate-in fade-in">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-5 h-5 text-amber-600" />
-                  <h4 className="font-bold text-sm text-slate-800">รีเซ็ตรหัสผ่านผู้ใช้งาน</h4>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">รีเซ็ตรหัสผ่านผู้ใช้งาน</h4>
+                    <p className="text-[11px] text-slate-400">สำหรับผู้ดูแลระบบกำหนดรหัสผ่านใหม่</p>
+                  </div>
                 </div>
-                <button onClick={() => setResetUser(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button 
+                  onClick={() => setResetUser(null)} 
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <p className="text-xs text-slate-600">
-                ตั้งรหัสผ่านใหม่สำหรับ: <strong className="text-slate-800">{resetUser.displayName || resetUser.email}</strong>
-                <br /><span className="text-slate-400 font-mono text-[11px]">{resetUser.email}</span>
-              </p>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <p className="text-xs text-slate-700">
+                  กำลังตั้งรหัสผ่านใหม่ให้กับ: <strong className="text-slate-900">{resetUser.displayName || resetUser.email}</strong>
+                </p>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">{resetUser.email}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">
+                    สิทธิ์: {resetUser.role}
+                  </span>
+                </div>
+              </div>
 
-              <form onSubmit={handleResetUserPassword} className="space-y-3">
-                <input
-                  type="text"
-                  required
-                  value={resetPasswordInput}
-                  onChange={(e) => setResetPasswordInput(e.target.value)}
-                  placeholder="ระบุรหัสผ่านใหม่ (อย่างน้อย 4 ตัว)"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 outline-none"
-                />
+              <form onSubmit={handleResetUserPassword} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)*
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      required
+                      value={resetPasswordInput}
+                      onChange={(e) => setResetPasswordInput(e.target.value)}
+                      placeholder="ระบุรหัสผ่านใหม่ เช่น 123456"
+                      className="w-full px-3.5 py-2.5 pr-10 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white shadow-2xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
-                <div className="flex justify-end gap-2 pt-1">
+                {/* Quick Password Suggestions */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium">คำแนะนำรหัสผ่านด่วน:</span>
+                  <button
+                    type="button"
+                    onClick={() => setResetPasswordInput('123456')}
+                    className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    123456
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResetPasswordInput('admin1234')}
+                    className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    admin1234
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomPass = Math.random().toString(36).substring(2, 8);
+                      setResetPasswordInput(randomPass);
+                    }}
+                    className="text-[11px] px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-md border border-amber-200 transition-colors cursor-pointer"
+                  >
+                    สุ่มรหัสผ่านอัตโนมัติ
+                  </button>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setResetUser(null)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
                   >
                     ยกเลิก
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                    className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-amber-600/20 cursor-pointer flex items-center gap-1.5 transition-all"
                   >
-                    บันทึกรหัสผ่านใหม่
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>บันทึกรหัสผ่านใหม่</span>
                   </button>
                 </div>
               </form>
