@@ -18,13 +18,14 @@ import {
   Download,
   ChevronDown
 } from 'lucide-react';
-import { UserProfile, GoogleSheetConfig, UserRole } from '../types';
+import { UserProfile, GoogleSheetConfig, UserRole, RoleConfig } from '../types';
 import { RenazzoLogo } from './RenazzoLogo';
 
 interface HeaderProps {
   activeTab: 'dashboard' | 'history';
   setActiveTab: (tab: 'dashboard' | 'history') => void;
   currentUser: UserProfile;
+  roles?: RoleConfig[];
   sheetConfig: GoogleSheetConfig | null;
   isSyncing: boolean;
   onOpenNewRecord: () => void;
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   currentUser,
+  roles = [],
   sheetConfig,
   isSyncing,
   onOpenNewRecord,
@@ -56,42 +58,45 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const isAdmin = currentUser.role === 'Admin';
+  const matchedRole = roles.find(r => r.name.toLowerCase() === currentUser.role.toLowerCase());
+  const isAdmin = currentUser.role === 'Admin' || !!matchedRole?.permissions.canManageSettings;
   const isAccounting = currentUser.role === 'Accounting';
-  const isOfficer = currentUser.role === 'Administration Officer';
 
-  // Permissions:
-  // Admin & Accounting can see Dashboard summary/reports
-  const canViewDashboard = isAdmin || isAccounting;
-  // All roles can add record
-  const canAddRecord = true;
+  // Permissions derived from RoleConfig or fallback defaults
+  const canViewDashboard = matchedRole
+    ? matchedRole.permissions.canViewDashboard
+    : (isAdmin || isAccounting);
+  const canAddRecord = matchedRole
+    ? matchedRole.permissions.canAddRecord
+    : true;
+  const canExportExcel = matchedRole
+    ? matchedRole.permissions.canExportExcel
+    : (isAdmin || isAccounting);
 
   const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'Admin':
-        return (
-          <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" />
-            <span>Admin</span>
-          </span>
-        );
-      case 'Accounting':
-        return (
-          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-            <Calculator className="w-3 h-3" />
-            <span>Accounting</span>
-          </span>
-        );
-      case 'Administration Officer':
-        return (
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-            <UserCheck className="w-3 h-3" />
-            <span>Officer</span>
-          </span>
-        );
-      default:
-        return null;
-    }
+    const rCfg = roles.find(r => r.name.toLowerCase() === role.toLowerCase());
+    const theme = rCfg?.colorTheme || (role === 'Admin' ? 'sky' : role === 'Accounting' ? 'emerald' : 'amber');
+    const badgeStyles: Record<string, string> = {
+      sky: 'text-sky-700 bg-sky-100',
+      emerald: 'text-emerald-700 bg-emerald-100',
+      amber: 'text-amber-700 bg-amber-100',
+      purple: 'text-purple-700 bg-purple-100',
+      rose: 'text-rose-700 bg-rose-100',
+      slate: 'text-slate-700 bg-slate-100'
+    };
+
+    return (
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 ${badgeStyles[theme] || badgeStyles.amber}`}>
+        {role === 'Admin' ? (
+          <ShieldCheck className="w-3 h-3" />
+        ) : role === 'Accounting' ? (
+          <Calculator className="w-3 h-3" />
+        ) : (
+          <UserCheck className="w-3 h-3" />
+        )}
+        <span>{role === 'Administration Officer' ? 'Officer' : role}</span>
+      </span>
+    );
   };
 
   return (
@@ -150,8 +155,8 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">คู่มือ</span>
             </button>
 
-            {/* Export Excel Button (Available to Admin & Accounting) */}
-            {(isAdmin || isAccounting) && (
+            {/* Export Excel Button */}
+            {canExportExcel && (
               <button
                 id="header-export-excel-btn"
                 onClick={onExportExcel}
@@ -168,7 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-master-data-btn"
                 onClick={onOpenMasterData}
-                title="การตั้งค่า รุ่นรถ/สีรถ/สาขา/พนักงาน/ผู้ใช้งาน (Admin)"
+                title="การตั้งค่า รุ่นรถ/สีรถ/สาขา/พนักงาน/ผู้ใช้งาน/สิทธิ์การใช้งาน (Admin)"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-200/80 shrink-0 cursor-pointer"
               >
                 <Settings className="w-3.5 h-3.5 text-slate-600" />
@@ -176,7 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Google Sheet Sync Button / Indicator (Admin & Accounting) */}
+            {/* Google Sheet Sync Button / Indicator */}
             {isAdmin && (
               <button
                 id="header-sheet-settings-btn"
@@ -186,10 +191,10 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
                     : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
                 }`}
-                title="ตั้งค่า Google Sheet กลาง 3 แท็บ"
+                title="ตั้งค่า Google Sheet"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden lg:inline">{sheetConfig?.isConnected ? 'Google Sheet 3 แท็บ' : 'เชื่อมต่อ Sheet'}</span>
+                <span className="hidden lg:inline">Google Sheet</span>
                 {isSyncing && <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 ml-1" />}
               </button>
             )}
@@ -261,7 +266,7 @@ export const Header: React.FC<HeaderProps> = ({
                           className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                         >
                           <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                          <span>ตั้งค่า Google Sheet กลาง</span>
+                          <span>Google Sheet</span>
                         </button>
                       </>
                     )}

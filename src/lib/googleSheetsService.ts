@@ -273,7 +273,8 @@ function doPost(e) {
           ['MasterData', 'colors', JSON.stringify(settings.colors || []), now],
           ['MasterData', 'branches', JSON.stringify(settings.branches || []), now],
           ['MasterData', 'brands', JSON.stringify(settings.brands || []), now],
-          ['MasterData', 'employees', JSON.stringify(settings.employees || []), now]
+          ['MasterData', 'employees', JSON.stringify(settings.employees || []), now],
+          ['MasterData', 'roles', JSON.stringify(settings.roles || []), now]
         ];
         settingsSheet.getRange(2, 1, settingRows.length, SETTING_HEADERS.length).setValues(settingRows);
       }
@@ -468,7 +469,7 @@ export async function pullDataFromGoogleSheet(webAppUrl: string): Promise<SheetP
     uid: String(u.uid || `user-${Date.now()}`),
     email: String(u.email || '').toLowerCase().trim(),
     displayName: String(u.displayName || u.email?.split('@')[0] || 'User'),
-    role: (u.role === 'Admin' || u.role === 'Accounting' || u.role === 'Administration Officer') ? u.role : 'Administration Officer',
+    role: u.role ? String(u.role).trim() : 'Administration Officer',
     password: u.password || 'admin1234',
     createdAt: String(u.createdAt || new Date().toISOString()),
     lastLoginAt: u.lastLoginAt ? String(u.lastLoginAt) : undefined
@@ -480,7 +481,8 @@ export async function pullDataFromGoogleSheet(webAppUrl: string): Promise<SheetP
       colors: Array.isArray(rawSettings.colors) ? rawSettings.colors : [],
       branches: Array.isArray(rawSettings.branches) ? rawSettings.branches : [],
       brands: Array.isArray(rawSettings.brands) ? rawSettings.brands : [],
-      employees: Array.isArray(rawSettings.employees) ? rawSettings.employees : []
+      employees: Array.isArray(rawSettings.employees) ? rawSettings.employees : [],
+      roles: Array.isArray(rawSettings.roles) ? rawSettings.roles : []
     };
   }
 

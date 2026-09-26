@@ -1,4 +1,55 @@
-import { CarColor, Branch, CarBrand, Employee, CarWashRecord, UserProfile } from '../types';
+import { CarColor, Branch, CarBrand, Employee, CarWashRecord, UserProfile, RoleConfig } from '../types';
+
+export const INITIAL_ROLES: RoleConfig[] = [
+  {
+    id: 'role-admin',
+    name: 'Admin',
+    displayName: 'ผู้ดูแลระบบ (Admin)',
+    description: 'มีสิทธิ์เต็ม: ดู Dashboard, เพิ่ม/แก้ไข/ลบรายการ, Export Excel และจัดการการตั้งค่าระบบ',
+    colorTheme: 'sky',
+    isSystemDefault: true,
+    permissions: {
+      canViewDashboard: true,
+      canAddRecord: true,
+      canEditRecord: true,
+      canDeleteRecord: true,
+      canExportExcel: true,
+      canManageSettings: true
+    }
+  },
+  {
+    id: 'role-accounting',
+    name: 'Accounting',
+    displayName: 'ฝ่ายบัญชี (Accounting)',
+    description: 'ดู Dashboard สรุปยอด, ดูประวัติ, เพิ่ม/แก้ไขรายการ และ Export Excel (ไม่มีสิทธิ์ลบรายการ)',
+    colorTheme: 'emerald',
+    isSystemDefault: false,
+    permissions: {
+      canViewDashboard: true,
+      canAddRecord: true,
+      canEditRecord: true,
+      canDeleteRecord: false,
+      canExportExcel: true,
+      canManageSettings: false
+    }
+  },
+  {
+    id: 'role-officer',
+    name: 'Administration Officer',
+    displayName: 'เจ้าหน้าที่ธุรการ (Officer)',
+    description: 'บันทึกรถล้างและแก้ไขประวัติรายการ (ไม่มีสิทธิ์ลบรายการ)',
+    colorTheme: 'amber',
+    isSystemDefault: false,
+    permissions: {
+      canViewDashboard: false,
+      canAddRecord: true,
+      canEditRecord: true,
+      canDeleteRecord: false,
+      canExportExcel: false,
+      canManageSettings: false
+    }
+  }
+];
 
 export const INITIAL_COLORS: CarColor[] = [
   { id: 'c1', name: 'ขาว (Pure White)', hexCode: '#FFFFFF' },

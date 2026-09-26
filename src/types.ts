@@ -50,8 +50,27 @@ export interface Employee {
   isActive: boolean;
 }
 
-// 3 RBAC Roles requested by user: Admin, Accounting, Administration Officer
-export type UserRole = 'Admin' | 'Accounting' | 'Administration Officer';
+// RBAC Roles: Default roles ('Admin', 'Accounting', 'Administration Officer') + custom configurable roles
+export type UserRole = string;
+
+export interface RolePermissions {
+  canViewDashboard: boolean;
+  canAddRecord: boolean;
+  canEditRecord: boolean;
+  canDeleteRecord: boolean;
+  canExportExcel: boolean;
+  canManageSettings: boolean;
+}
+
+export interface RoleConfig {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  colorTheme: 'sky' | 'emerald' | 'amber' | 'purple' | 'rose' | 'slate';
+  isSystemDefault?: boolean;
+  permissions: RolePermissions;
+}
 
 export interface UserProfile {
   uid: string;
@@ -83,6 +102,7 @@ export interface MasterSettingsData {
   branches: Branch[];
   brands: CarBrand[];
   employees: Employee[];
+  roles?: RoleConfig[];
 }
 
 export interface FilterState {

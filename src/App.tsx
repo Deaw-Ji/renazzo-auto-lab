@@ -31,7 +31,8 @@ import {
   Branch, 
   CarBrand, 
   Employee,
-  MasterSettingsData
+  MasterSettingsData,
+  RoleConfig
 } from './types';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
@@ -60,26 +61,43 @@ export default function App() {
   const [brands, setBrands] = useState<CarBrand[]>(() => storage.getBrands());
   const [employees, setEmployees] = useState<Employee[]>(() => storage.getEmployees());
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => storage.getUsers());
+  const [roles, setRoles] = useState<RoleConfig[]>(() => storage.getRoles());
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig | null>(() => storage.getSheetConfig());
 
   // 3. UI Navigation & Permissions
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>(() => {
-    const user = storage.getCurrentUser();
-    return user?.role === 'Admin' || user?.role === 'Accounting' ? 'dashboard' : 'history';
-  });
+  const currentRoleConfig = currentUser
+    ? roles.find(r => r.name.toLowerCase() === currentUser.role.toLowerCase())
+    : undefined;
 
-  const isAdmin = currentUser?.role === 'Admin';
+  const isAdmin = currentUser?.role === 'Admin' || Boolean(currentRoleConfig?.permissions.canManageSettings);
   const isAccounting = currentUser?.role === 'Accounting';
   const isOfficer = currentUser?.role === 'Administration Officer';
 
-  // Role Permissions:
-  // - Admin: All access, can view dashboard, add, edit, DELETE, manage users, master data, sheet config
-  // - Accounting: View dashboard summaries, history, add, edit, export Excel, NO DELETE
-  // - Officer: View history, add, edit, NO DELETE
-  const canViewDashboard = isAdmin || isAccounting;
-  const canAddRecord = true;
-  const canEditRecord = true;
-  const canDeleteRecord = isAdmin; // Strictly ONLY Admin can delete!
+  // Role Permissions (dynamically evaluated from RoleConfig, with fallback defaults):
+  const canViewDashboard = currentRoleConfig
+    ? currentRoleConfig.permissions.canViewDashboard
+    : (isAdmin || isAccounting);
+  const canAddRecord = currentRoleConfig
+    ? currentRoleConfig.permissions.canAddRecord
+    : true;
+  const canEditRecord = currentRoleConfig
+    ? currentRoleConfig.permissions.canEditRecord
+    : true;
+  const canDeleteRecord = currentRoleConfig
+    ? currentRoleConfig.permissions.canDeleteRecord
+    : (currentUser?.role === 'Admin');
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>(() => {
+    const user = storage.getCurrentUser();
+    const initialRoles = storage.getRoles();
+    const matchedRole = user
+      ? initialRoles.find(r => r.name.toLowerCase() === user.role.toLowerCase())
+      : undefined;
+    const initialCanViewDashboard = matchedRole
+      ? matchedRole.permissions.canViewDashboard
+      : (user?.role === 'Admin' || user?.role === 'Accounting');
+    return initialCanViewDashboard ? 'dashboard' : 'history';
+  });
 
   // Filter State
   const [filterState, setFilterState] = useState<FilterState>(() => {
@@ -193,6 +211,10 @@ export default function App() {
   }, [userProfiles]);
 
   useEffect(() => {
+    storage.saveRoles(roles);
+  }, [roles]);
+
+  useEffect(() => {
     storage.saveSheetConfig(sheetConfig);
   }, [sheetConfig]);
 
@@ -229,6 +251,7 @@ export default function App() {
           if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
           if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
           if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
+          if (pullResult.settings.roles?.length) setRoles(pullResult.settings.roles);
         }
         storage.setPullInitialized(true);
       } catch (err) {
@@ -245,9 +268,10 @@ export default function App() {
       colors,
       branches,
       brands,
-      employees
+      employees,
+      roles
     };
-  }, [colors, branches, brands, employees]);
+  }, [colors, branches, brands, employees, roles]);
 
   // --------------------------------------------------------------------------
   // AUTHENTICATION HANDLERS
@@ -271,8 +295,12 @@ export default function App() {
           autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, updatedUsers);
         }
 
-        // Set default view based on role
-        if (result.user.role === 'Admin' || result.user.role === 'Accounting') {
+        // Set default view based on role permissions
+        const matchedRole = roles.find(r => r.name.toLowerCase() === result.user!.role.toLowerCase());
+        const userCanViewDashboard = matchedRole
+          ? matchedRole.permissions.canViewDashboard
+          : (result.user.role === 'Admin' || result.user.role === 'Accounting');
+        if (userCanViewDashboard) {
           setActiveTab('dashboard');
         } else {
           setActiveTab('history');
@@ -388,11 +416,13 @@ export default function App() {
         const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
         const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
         const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+        const nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
 
         if (pullResult.settings.colors?.length) setColors(nextColors);
         if (pullResult.settings.branches?.length) setBranches(nextBranches);
         if (pullResult.settings.brands?.length) setBrands(nextBrands);
         if (pullResult.settings.employees?.length) setEmployees(nextEmployees);
+        if (pullResult.settings.roles?.length) setRoles(nextRoles);
       }
 
       const newConfig: GoogleSheetConfig = {
@@ -451,11 +481,13 @@ export default function App() {
         const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
         const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
         const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+        const nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
 
         if (pullResult.settings.colors?.length) setColors(nextColors);
         if (pullResult.settings.branches?.length) setBranches(nextBranches);
         if (pullResult.settings.brands?.length) setBrands(nextBrands);
         if (pullResult.settings.employees?.length) setEmployees(nextEmployees);
+        if (pullResult.settings.roles?.length) setRoles(nextRoles);
       }
 
       setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
@@ -557,10 +589,10 @@ export default function App() {
     setIsRecordModalOpen(true);
   };
 
-  // Handle Delete Record Click (STRICTLY ADMIN ONLY)
+  // Handle Delete Record Click
   const handleDeleteRecordClick = (record: CarWashRecord) => {
-    if (!isAdmin) {
-      showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้', 'error');
+    if (!canDeleteRecord) {
+      showToast('บัญชีของคุณไม่มีสิทธิ์ในการลบรายการ', 'error');
       return;
     }
 
@@ -635,8 +667,24 @@ export default function App() {
 
   const handleUpdateUserProfiles = (newUsers: UserProfile[]) => {
     setUserProfiles(newUsers);
+    if (currentUser) {
+      const updatedCurrent = newUsers.find(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
+      if (updatedCurrent) setCurrentUser(updatedCurrent);
+    }
     if (sheetConfig?.webAppUrl) {
       autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, newUsers);
+    }
+  };
+
+  const handleUpdateRoles = (newRoles: RoleConfig[]) => {
+    setRoles(newRoles);
+    const nextSettings = { ...getMasterSettings(), roles: newRoles };
+    if (sheetConfig?.webAppUrl) {
+      pushAllToGoogleSheet(sheetConfig.webAppUrl, {
+        jobs: records,
+        users: userProfiles,
+        settings: nextSettings
+      }).catch(console.warn);
     }
   };
 
@@ -678,6 +726,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentUser={currentUser}
+        roles={roles}
         sheetConfig={sheetConfig}
         isSyncing={isSyncing}
         onOpenNewRecord={() => {
@@ -720,6 +769,7 @@ export default function App() {
             records={records}
             branches={branches}
             currentUser={currentUser}
+            roles={roles}
             filterState={filterState}
             onFilterChange={(newFilters) => setFilterState(prev => ({ ...prev, ...newFilters }))}
             onEditRecord={handleEditRecordClick}
@@ -779,11 +829,13 @@ export default function App() {
           brands={brands}
           employees={employees}
           userProfiles={userProfiles}
+          roles={roles}
           onUpdateColors={handleUpdateColors}
           onUpdateBranches={handleUpdateBranches}
           onUpdateBrands={handleUpdateBrands}
           onUpdateEmployees={handleUpdateEmployees}
           onUpdateUserProfiles={handleUpdateUserProfiles}
+          onUpdateRoles={handleUpdateRoles}
         />
       )}
 

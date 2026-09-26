@@ -5,7 +5,8 @@ import {
   CarBrand, 
   Employee, 
   UserProfile, 
-  GoogleSheetConfig 
+  GoogleSheetConfig,
+  RoleConfig
 } from '../types';
 import { 
   INITIAL_COLORS, 
@@ -13,7 +14,8 @@ import {
   INITIAL_BRANDS, 
   INITIAL_EMPLOYEES, 
   DEFAULT_USERS, 
-  INITIAL_SAMPLE_RECORDS 
+  INITIAL_SAMPLE_RECORDS,
+  INITIAL_ROLES
 } from './initialData';
 import { normalizeDateToYMD, normalizeWashStatus } from './constants';
 
@@ -24,6 +26,7 @@ const KEYS = {
   BRANDS: 'carwash_brands_v2',
   EMPLOYEES: 'carwash_employees_v2',
   USERS: 'carwash_users_v2',
+  ROLES: 'carwash_roles_v2',
   SHEET_CONFIG: 'carwash_sheet_config_v2',
   CURRENT_USER: 'carwash_current_user_v2',
   PULL_INITIALIZED: 'carwash_pull_initialized_v2'
@@ -152,6 +155,29 @@ export const storage = {
       localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     } catch (e) {
       console.error('Failed to save users', e);
+    }
+  },
+
+  getRoles: (): RoleConfig[] => {
+    try {
+      const data = localStorage.getItem(KEYS.ROLES);
+      if (!data) return INITIAL_ROLES;
+      const parsed: RoleConfig[] = JSON.parse(data);
+      if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_ROLES;
+      // Ensure Admin role always exists
+      if (!parsed.some(r => r.name === 'Admin')) {
+        parsed.unshift(INITIAL_ROLES[0]);
+      }
+      return parsed;
+    } catch {
+      return INITIAL_ROLES;
+    }
+  },
+  saveRoles: (roles: RoleConfig[]) => {
+    try {
+      localStorage.setItem(KEYS.ROLES, JSON.stringify(roles));
+    } catch (e) {
+      console.error('Failed to save roles', e);
     }
   },
 

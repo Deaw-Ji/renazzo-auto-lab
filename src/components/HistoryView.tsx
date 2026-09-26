@@ -11,13 +11,14 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine
 } from 'lucide-react';
-import { CarWashRecord, Branch, UserProfile, FilterState } from '../types';
+import { CarWashRecord, Branch, UserProfile, FilterState, RoleConfig } from '../types';
 import { STATUS_CONFIGS, WASH_STATUS_OPTIONS, normalizeDateToYMD } from '../lib/constants';
 
 interface HistoryViewProps {
   records: CarWashRecord[];
   branches: Branch[];
   currentUser: UserProfile | null;
+  roles?: RoleConfig[];
   filterState: FilterState;
   onFilterChange: (filters: Partial<FilterState>) => void;
   onEditRecord: (record: CarWashRecord) => void;
@@ -34,6 +35,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   records,
   branches,
   currentUser,
+  roles = [],
   filterState,
   onFilterChange,
   onEditRecord,
@@ -46,13 +48,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   isSyncing
 }) => {
   const isAdmin = currentUser?.role === 'Admin' || (currentUser?.role as any) === 'admin';
-  const isAccounting = currentUser?.role === 'Accounting' || (currentUser?.role as any) === 'accounting';
-  const isOfficer = currentUser?.role === 'Administration Officer' || (currentUser?.role as any) === 'officer';
+  const matchedRole = currentUser
+    ? roles.find(r => r.name.toLowerCase() === currentUser.role.toLowerCase())
+    : undefined;
 
-  // Rule: Delete is strictly restricted to Admin only! Other roles cannot see or use delete.
-  const canDeleteRecord = isAdmin;
-  const canEditRecord = true;
-  const canAddRecord = true;
+  const canDeleteRecord = matchedRole ? matchedRole.permissions.canDeleteRecord : isAdmin;
+  const canEditRecord = matchedRole ? matchedRole.permissions.canEditRecord : true;
+  const canAddRecord = matchedRole ? matchedRole.permissions.canAddRecord : true;
 
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
 
