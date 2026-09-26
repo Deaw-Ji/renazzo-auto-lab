@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { storage } from './lib/storage';
 import { 
   authenticateUser, 
@@ -45,6 +45,7 @@ import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Plus, CheckCircle2, AlertCircle } from 'lucide-react';
+import { normalizeDateToYMD } from './lib/constants';
 
 export default function App() {
   // 1. RBAC Authentication State
@@ -81,13 +82,55 @@ export default function App() {
   const canDeleteRecord = isAdmin; // Strictly ONLY Admin can delete!
 
   // Filter State
-  const [filterState, setFilterState] = useState<FilterState>({
-    month: new Date().toISOString().substring(0, 7), // e.g. 2026-09
-    branch: 'all',
-    status: 'all',
-    searchQuery: '',
-    staff: 'all'
+  const [filterState, setFilterState] = useState<FilterState>(() => {
+    const initialRecords = storage.getRecords();
+    const currentMonth = normalizeDateToYMD(new Date()).substring(0, 7);
+    const hasCurrentMonth = initialRecords.some(r =>
+      normalizeDateToYMD(r.date, r.createdAt, r.id).startsWith(currentMonth)
+    );
+    if (hasCurrentMonth || initialRecords.length === 0) {
+      return {
+        month: currentMonth,
+        branch: 'all',
+        status: 'all',
+        searchQuery: '',
+        staff: 'all'
+      };
+    }
+    const availableMonths = initialRecords
+      .map(r => normalizeDateToYMD(r.date, r.createdAt, r.id).substring(0, 7))
+      .filter(m => /^\d{4}-\d{2}$/.test(m))
+      .sort()
+      .reverse();
+    return {
+      month: availableMonths[0] || currentMonth,
+      branch: 'all',
+      status: 'all',
+      searchQuery: '',
+      staff: 'all'
+    };
   });
+
+  // Helper to ensure selected month has records after pulling from Google Sheets
+  const alignMonthFilterWithJobs = useCallback((jobs: CarWashRecord[]) => {
+    if (!jobs || jobs.length === 0) return;
+    setFilterState(prev => {
+      if (prev.month === 'all') return prev;
+      const hasMatch = jobs.some(r =>
+        normalizeDateToYMD(r.date, r.createdAt, r.id).startsWith(prev.month)
+      );
+      if (hasMatch) return prev;
+      const latestMonths = jobs
+        .map(r => normalizeDateToYMD(r.date, r.createdAt, r.id).substring(0, 7))
+        .filter(m => /^\d{4}-\d{2}$/.test(m))
+        .sort()
+        .reverse();
+      return {
+        ...prev,
+        month: latestMonths[0] || 'all'
+      };
+    });
+  }, []);
 
   // Modal Visibility States
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -164,18 +207,19 @@ export default function App() {
     }
   }, [currentUser, canViewDashboard, activeTab]);
 
-  // CRITICAL REQUIREMENT:
-  // On startup or first connection, automatically fetch / pull existing data from Google Sheet
-  // so existing records in Google Sheet are never lost!
+  // Automatically fetch / pull existing data from Google Sheet once per session
+  const hasPulledSessionRef = useRef(false);
   useEffect(() => {
     const autoPullFromSheet = async () => {
       if (!sheetConfig?.webAppUrl || !sheetConfig.isConnected) return;
-      if (storage.isPullInitialized()) return;
+      if (hasPulledSessionRef.current) return;
+      hasPulledSessionRef.current = true;
 
       try {
         const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
         if (pullResult.jobs && pullResult.jobs.length > 0) {
           setRecords(pullResult.jobs);
+          alignMonthFilterWithJobs(pullResult.jobs);
         }
         if (pullResult.users && pullResult.users.length > 0) {
           setUserProfiles(pullResult.users);
@@ -193,7 +237,7 @@ export default function App() {
     };
 
     autoPullFromSheet();
-  }, [sheetConfig]);
+  }, [sheetConfig?.webAppUrl, sheetConfig?.isConnected]);
 
   // Master Data helper
   const getMasterSettings = useCallback((): MasterSettingsData => {
@@ -333,16 +377,22 @@ export default function App() {
       // If sheet already has jobs, use them (don't overwrite!)
       if (pullResult.jobs && pullResult.jobs.length > 0) {
         setRecords(pullResult.jobs);
+        alignMonthFilterWithJobs(pullResult.jobs);
         pulledJobsCount = pullResult.jobs.length;
       }
       if (pullResult.users && pullResult.users.length > 0) {
         setUserProfiles(pullResult.users);
       }
       if (pullResult.settings) {
-        if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
-        if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
-        if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
-        if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
+        const nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
+        const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
+        const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
+        const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+
+        if (pullResult.settings.colors?.length) setColors(nextColors);
+        if (pullResult.settings.branches?.length) setBranches(nextBranches);
+        if (pullResult.settings.brands?.length) setBrands(nextBrands);
+        if (pullResult.settings.employees?.length) setEmployees(nextEmployees);
       }
 
       const newConfig: GoogleSheetConfig = {
@@ -391,15 +441,21 @@ export default function App() {
       const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
       if (pullResult.jobs && pullResult.jobs.length > 0) {
         setRecords(pullResult.jobs);
+        alignMonthFilterWithJobs(pullResult.jobs);
       }
       if (pullResult.users && pullResult.users.length > 0) {
         setUserProfiles(pullResult.users);
       }
       if (pullResult.settings) {
-        if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
-        if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
-        if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
-        if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
+        const nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
+        const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
+        const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
+        const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+
+        if (pullResult.settings.colors?.length) setColors(nextColors);
+        if (pullResult.settings.branches?.length) setBranches(nextBranches);
+        if (pullResult.settings.brands?.length) setBrands(nextBrands);
+        if (pullResult.settings.employees?.length) setEmployees(nextEmployees);
       }
 
       setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
@@ -531,44 +587,48 @@ export default function App() {
   // Master Data Update Handlers (with auto sync to Google Sheet)
   const handleUpdateColors = (newColors: CarColor[]) => {
     setColors(newColors);
+    const nextSettings = { ...getMasterSettings(), colors: newColors };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
         jobs: records,
         users: userProfiles,
-        settings: { ...getMasterSettings(), colors: newColors }
+        settings: nextSettings
       }).catch(console.warn);
     }
   };
 
   const handleUpdateBranches = (newBranches: Branch[]) => {
     setBranches(newBranches);
+    const nextSettings = { ...getMasterSettings(), branches: newBranches };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
         jobs: records,
         users: userProfiles,
-        settings: { ...getMasterSettings(), branches: newBranches }
+        settings: nextSettings
       }).catch(console.warn);
     }
   };
 
   const handleUpdateBrands = (newBrands: CarBrand[]) => {
     setBrands(newBrands);
+    const nextSettings = { ...getMasterSettings(), brands: newBrands };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
         jobs: records,
         users: userProfiles,
-        settings: { ...getMasterSettings(), brands: newBrands }
+        settings: nextSettings
       }).catch(console.warn);
     }
   };
 
   const handleUpdateEmployees = (newEmployees: Employee[]) => {
     setEmployees(newEmployees);
+    const nextSettings = { ...getMasterSettings(), employees: newEmployees };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
         jobs: records,
         users: userProfiles,
-        settings: { ...getMasterSettings(), employees: newEmployees }
+        settings: nextSettings
       }).catch(console.warn);
     }
   };
@@ -585,7 +645,6 @@ export default function App() {
     return (
       <LoginScreen
         onLogin={handleLogin}
-        onQuickLogin={handleLogin}
         isLoading={isAuthLoading}
         errorMessage={authError}
       />
@@ -653,6 +712,8 @@ export default function App() {
               setIsRecordModalOpen(true);
             }}
             onViewHistory={() => setActiveTab('history')}
+            onPullFromSheet={handlePullFromSheet}
+            isSyncing={isSyncing}
           />
         ) : (
           <HistoryView

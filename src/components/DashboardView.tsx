@@ -12,10 +12,12 @@ import {
   Clock, 
   Award,
   ChevronRight,
-  Filter
+  Filter,
+  ArrowDownToLine,
+  RefreshCw
 } from 'lucide-react';
 import { CarWashRecord, Branch, Employee, WashStatusType, FilterState } from '../types';
-import { STATUS_CONFIGS, WASH_STATUS_OPTIONS } from '../lib/constants';
+import { STATUS_CONFIGS, WASH_STATUS_OPTIONS, normalizeDateToYMD } from '../lib/constants';
 
 interface DashboardViewProps {
   records: CarWashRecord[];
@@ -25,6 +27,8 @@ interface DashboardViewProps {
   onFilterChange: (filters: Partial<FilterState>) => void;
   onOpenNewRecord: () => void;
   onViewHistory: () => void;
+  onPullFromSheet?: () => void;
+  isSyncing?: boolean;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -34,17 +38,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   filterState,
   onFilterChange,
   onOpenNewRecord,
-  onViewHistory
+  onViewHistory,
+  onPullFromSheet,
+  isSyncing = false
 }) => {
   // Available months extracted from records + current month
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    set.add(currentMonth);
+    const currentMonth = normalizeDateToYMD(new Date()).substring(0, 7);
+    if (/^\d{4}-\d{2}$/.test(currentMonth)) {
+      set.add(currentMonth);
+    }
 
     records.forEach(r => {
-      if (r.date && r.date.length >= 7) {
-        set.add(r.date.substring(0, 7));
+      const ymd = normalizeDateToYMD(r.date, r.createdAt, r.id);
+      if (ymd && ymd.length >= 7) {
+        const ym = ymd.substring(0, 7);
+        if (/^\d{4}-\d{2}$/.test(ym)) {
+          set.add(ym);
+        }
       }
     });
 
@@ -54,16 +66,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Filtered records by month & branch
   const filteredRecords = useMemo(() => {
     return records.filter(r => {
-      const matchMonth = filterState.month === 'all' || (r.date && r.date.startsWith(filterState.month));
+      const ymd = normalizeDateToYMD(r.date, r.createdAt, r.id);
+      const matchMonth = filterState.month === 'all' || (ymd && ymd.startsWith(filterState.month));
       const matchBranch = filterState.branch === 'all' || r.branch === filterState.branch;
       return matchMonth && matchBranch;
     });
   }, [records, filterState.month, filterState.branch]);
 
   // Today's records count
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = normalizeDateToYMD(new Date());
   const todayCount = useMemo(() => {
-    return records.filter(r => r.date === todayStr).length;
+    return records.filter(r => normalizeDateToYMD(r.date, r.createdAt, r.id) === todayStr).length;
   }, [records, todayStr]);
 
   // Status breakdown metrics
@@ -113,8 +126,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const staffMap: Record<string, { totalCars: number; detailing: number; deliver: number; service: number }> = {};
 
     filteredRecords.forEach(r => {
-      r.staffNames.forEach(staffName => {
-        const trimmed = staffName.trim();
+      (Array.isArray(r.staffNames) ? r.staffNames : []).forEach(staffName => {
+        const trimmed = String(staffName || '').trim();
         if (!trimmed) return;
         if (!staffMap[trimmed]) {
           staffMap[trimmed] = { totalCars: 0, detailing: 0, deliver: 0, service: 0 };
@@ -135,7 +148,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Top performer of the selected month
   const topPerformer = employeeStats[0] || null;
 
-  // Format Thai month label (e.g. 2026-09 -> กันยายน 2026)
+  // Format Thai month label (e.g. 2026-09 -> กันยายน 2569 (2026))
   const formatMonthLabel = (m: string) => {
     if (m === 'all') return 'ทุกช่วงเวลา (All Time)';
     const [year, month] = m.split('-');
@@ -145,7 +158,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ];
     const monthIndex = parseInt(month, 10) - 1;
     const yearNum = parseInt(year, 10);
-    return `${thaiMonths[monthIndex] || month} ${yearNum + 543} (${year})`;
+    if (isNaN(monthIndex) || isNaN(yearNum) || monthIndex < 0 || monthIndex > 11) {
+      return m;
+    }
+    return `${thaiMonths[monthIndex]} ${yearNum + 543} (${yearNum})`;
   };
 
   const totalFilteredCars = filteredRecords.length;
@@ -202,6 +218,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ))}
               </select>
             </div>
+
+            {/* Pull from Google Sheet Button */}
+            {onPullFromSheet && (
+              <button
+                type="button"
+                id="dashboard-pull-sheet-btn"
+                onClick={onPullFromSheet}
+                disabled={isSyncing}
+                title="ดึงข้อมูลล่าสุดจาก Google Sheets"
+                className="px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isSyncing ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                ) : (
+                  <ArrowDownToLine className="w-4 h-4 text-sky-600" />
+                )}
+                <span>ดึงข้อมูล (Pull)</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -468,7 +503,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-sky-600" />
             <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-              รายการล้างรถล่าสุด ({filteredRecords.slice(0, 5).length} รายการ)
+              รายการล้างรถล่าสุด
             </h3>
           </div>
           <button

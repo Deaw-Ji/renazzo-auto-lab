@@ -12,7 +12,7 @@ import {
   ArrowUpFromLine
 } from 'lucide-react';
 import { CarWashRecord, Branch, UserProfile, FilterState } from '../types';
-import { STATUS_CONFIGS, WASH_STATUS_OPTIONS } from '../lib/constants';
+import { STATUS_CONFIGS, WASH_STATUS_OPTIONS, normalizeDateToYMD } from '../lib/constants';
 
 interface HistoryViewProps {
   records: CarWashRecord[];
@@ -62,18 +62,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       // Search query (plate, vin, brand, model, staff, notes)
       const q = filterState.searchQuery.toLowerCase().trim();
       const matchQuery = !q || (
-        record.licensePlate.toLowerCase().includes(q) ||
-        record.vinNumber.toLowerCase().includes(q) ||
-        record.brand.toLowerCase().includes(q) ||
-        record.model.toLowerCase().includes(q) ||
-        record.color.toLowerCase().includes(q) ||
-        record.branch.toLowerCase().includes(q) ||
-        record.notes.toLowerCase().includes(q) ||
-        record.staffNames.some(s => s.toLowerCase().includes(q))
+        (record.licensePlate || '').toLowerCase().includes(q) ||
+        (record.vinNumber || '').toLowerCase().includes(q) ||
+        (record.brand || '').toLowerCase().includes(q) ||
+        (record.model || '').toLowerCase().includes(q) ||
+        (record.color || '').toLowerCase().includes(q) ||
+        (record.branch || '').toLowerCase().includes(q) ||
+        (record.notes || '').toLowerCase().includes(q) ||
+        (Array.isArray(record.staffNames) ? record.staffNames : []).some(s => String(s || '').toLowerCase().includes(q))
       );
 
       // Month filter
-      const matchMonth = filterState.month === 'all' || (record.date && record.date.startsWith(filterState.month));
+      const ymd = normalizeDateToYMD(record.date, record.createdAt, record.id);
+      const matchMonth = filterState.month === 'all' || (ymd && ymd.startsWith(filterState.month));
 
       // Branch filter
       const matchBranch = filterState.branch === 'all' || record.branch === filterState.branch;

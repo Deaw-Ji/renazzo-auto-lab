@@ -15,6 +15,7 @@ import {
   DEFAULT_USERS, 
   INITIAL_SAMPLE_RECORDS 
 } from './initialData';
+import { normalizeDateToYMD, normalizeWashStatus } from './constants';
 
 const KEYS = {
   RECORDS: 'carwash_records_v2',
@@ -28,18 +29,41 @@ const KEYS = {
   PULL_INITIALIZED: 'carwash_pull_initialized_v2'
 };
 
+const sanitizeRecords = (list: CarWashRecord[]): CarWashRecord[] => {
+  if (!Array.isArray(list)) return INITIAL_SAMPLE_RECORDS;
+  return list.map(r => ({
+    ...r,
+    id: String(r.id || `CW-${Date.now()}`),
+    date: normalizeDateToYMD(r.date, r.createdAt, r.id),
+    licensePlate: r.licensePlate === '-' ? '' : String(r.licensePlate || '').trim(),
+    vinNumber: r.vinNumber === '-' ? '' : String(r.vinNumber || '').trim(),
+    brand: String(r.brand || ''),
+    model: String(r.model || ''),
+    color: String(r.color || ''),
+    washStatus: normalizeWashStatus(r.washStatus),
+    branch: String(r.branch || ''),
+    staffNames: Array.isArray(r.staffNames)
+      ? r.staffNames.map(s => String(s).trim()).filter(Boolean)
+      : typeof (r.staffNames as any) === 'string' && String(r.staffNames).trim()
+        ? String(r.staffNames).split(',').map(s => s.trim()).filter(Boolean)
+        : [],
+    notes: String(r.notes || ''),
+    loggedBy: String(r.loggedBy || '')
+  }));
+};
+
 export const storage = {
   getRecords: (): CarWashRecord[] => {
     try {
       const data = localStorage.getItem(KEYS.RECORDS);
-      return data ? JSON.parse(data) : INITIAL_SAMPLE_RECORDS;
+      return data ? sanitizeRecords(JSON.parse(data)) : INITIAL_SAMPLE_RECORDS;
     } catch {
       return INITIAL_SAMPLE_RECORDS;
     }
   },
   saveRecords: (records: CarWashRecord[]) => {
     try {
-      localStorage.setItem(KEYS.RECORDS, JSON.stringify(records));
+      localStorage.setItem(KEYS.RECORDS, JSON.stringify(sanitizeRecords(records)));
     } catch (e) {
       console.error('Failed to save records to localStorage', e);
     }

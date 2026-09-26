@@ -78,3 +78,162 @@ export const sortEnFirstThenTh = (a: string = '', b: string = ''): number => {
   });
 };
 
+/**
+ * Normalizes any date input from Google Sheets, Excel, or LocalStorage into 'YYYY-MM-DD'
+ * Supports:
+ * - Standard 'YYYY-MM-DD' / 'YYYY/MM/DD'
+ * - Thai / UK 'DD/MM/YYYY' or 'DD-MM-YYYY' (including Buddhist Era years >= 2400)
+ * - JS Date strings like 'Wed Sep 23 2026 00:00:00 GMT+0700...'
+ * - ISO timestamps like '2026-09-22T17:00:00.000Z' (converted to Asia/Bangkok timezone)
+ */
+export const normalizeDateToYMD = (
+  raw: unknown,
+  fallbackCreatedAt?: unknown,
+  fallbackId?: unknown
+): string => {
+  const tryParseSingle = (val: unknown): string | null => {
+    if (val === null || val === undefined || val === '') return null;
+
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return null;
+      return formatDateInBangkok(val);
+    }
+
+    // Excel serial date number (e.g. 45000 - 55000)
+    if (typeof val === 'number' && val > 30000 && val < 70000) {
+      const utcDays = Math.floor(val - 25569);
+      const d = new Date(utcDays * 86400 * 1000);
+      if (!isNaN(d.getTime())) return formatDateInBangkok(d);
+    }
+
+    const str = String(val).trim().replace(/^'+/, '');
+    if (!str) return null;
+
+    // 1. YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD (date only, no 'T')
+    const ymdMatch = str.match(/^(\d{4})[\-\/\.](\d{1,2})[\-\/\.](\d{1,2})$/);
+    if (ymdMatch) {
+      let y = parseInt(ymdMatch[1], 10);
+      let m = parseInt(ymdMatch[2], 10);
+      let d = parseInt(ymdMatch[3], 10);
+      if (y >= 2400) y -= 543;
+      if (m > 12 && d <= 12) {
+        const tmp = m;
+        m = d;
+        d = tmp;
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+
+    // 2. DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (with optional time)
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?:\s.*)?$/);
+    if (dmyMatch) {
+      const p1 = parseInt(dmyMatch[1], 10);
+      const p2 = parseInt(dmyMatch[2], 10);
+      let y = parseInt(dmyMatch[3], 10);
+      if (y >= 2400) y -= 543;
+      let d = p1;
+      let m = p2;
+      if (p2 > 12 && p1 <= 12) {
+        m = p1;
+        d = p2;
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+
+    // 3. DD/MM/YY (2-digit year)
+    const dmyShortMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})(?:\s.*)?$/);
+    if (dmyShortMatch) {
+      const p1 = parseInt(dmyShortMatch[1], 10);
+      const p2 = parseInt(dmyShortMatch[2], 10);
+      const y2 = parseInt(dmyShortMatch[3], 10);
+      const y = y2 >= 60 ? 2500 + y2 - 543 : 2000 + y2;
+      let d = p1;
+      let m = p2;
+      if (p2 > 12 && p1 <= 12) {
+        m = p1;
+        d = p2;
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+
+    // 4. Full JS Date string ("Wed Sep 23 2026...") or ISO string ("2026-09-22T17:00:00.000Z")
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return formatDateInBangkok(parsed);
+    }
+
+    return null;
+  };
+
+  const direct = tryParseSingle(raw);
+  if (direct) return direct;
+
+  // Try extracting from ID like CW-20260923-XXXX
+  if (fallbackId) {
+    const idStr = String(fallbackId);
+    const idFullMatch = idStr.match(/CW-(\d{4})(\d{2})(\d{2})/i);
+    if (idFullMatch) {
+      let y = parseInt(idFullMatch[1], 10);
+      if (y >= 2400) y -= 543;
+      return `${y}-${idFullMatch[2]}-${idFullMatch[3]}`;
+    }
+  }
+
+  // Try fallbackCreatedAt
+  const fromCreated = tryParseSingle(fallbackCreatedAt);
+  if (fromCreated) return fromCreated;
+
+  return formatDateInBangkok(new Date());
+};
+
+function formatDateInBangkok(d: Date): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d);
+    const yearStr = parts.find(p => p.type === 'year')?.value;
+    const monthStr = parts.find(p => p.type === 'month')?.value;
+    const dayStr = parts.find(p => p.type === 'day')?.value;
+    if (yearStr && monthStr && dayStr) {
+      let y = parseInt(yearStr, 10);
+      if (y >= 2400) y -= 543;
+      return `${y}-${monthStr}-${dayStr}`;
+    }
+  } catch {
+    // Fallback to local date getters
+  }
+  let y = d.getFullYear();
+  if (y >= 2400) y -= 543;
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Normalizes wash status string from Google Sheets into a valid WashStatusType
+ */
+export const normalizeWashStatus = (raw: unknown): WashStatusType => {
+  const str = String(raw || '').trim();
+  if (
+    str === 'Detailing New Car Deliver' ||
+    str === 'Wash For Deliver' ||
+    str === 'Wash for Service'
+  ) {
+    return str;
+  }
+  const lower = str.toLowerCase();
+  if (lower.includes('detailing')) return 'Detailing New Car Deliver';
+  if (lower.includes('service') || lower.includes('เซอร์วิส') || lower.includes('ศูนย์')) return 'Wash for Service';
+  if (lower.includes('deliver') || lower.includes('ส่งมอบ')) return 'Wash For Deliver';
+  return 'Detailing New Car Deliver';
+};
+

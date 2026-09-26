@@ -8,6 +8,7 @@ import {
   CarBrand, 
   Employee 
 } from '../types';
+import { normalizeDateToYMD, normalizeWashStatus } from './constants';
 
 export const APPS_SCRIPT_TEMPLATE = `/**
  * ======================================================================
@@ -70,6 +71,32 @@ function initAllSheets() {
   getOrCreateSheet(ss, SHEET_NAMES.SETTINGS, SETTING_HEADERS);
 }
 
+function formatDateYMD(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM-dd');
+  }
+  const s = String(val).trim().replace(/^'+/, '');
+  const dmy = s.match(/^(\\d{1,2})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{4})/);
+  if (dmy) {
+    let d = parseInt(dmy[1], 10);
+    let m = parseInt(dmy[2], 10);
+    let y = parseInt(dmy[3], 10);
+    if (y >= 2400) y -= 543;
+    if (m > 12 && d <= 12) { const t = d; d = m; m = t; }
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+  const ymd = s.match(/^(\\d{4})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{1,2})/);
+  if (ymd) {
+    let y = parseInt(ymd[1], 10);
+    let m = parseInt(ymd[2], 10);
+    let d = parseInt(ymd[3], 10);
+    if (y >= 2400) y -= 543;
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+  return s;
+}
+
 // ----------------------------------------------------------------------
 // GET: ดึงข้อมูลเดิมที่มีอยู่ใน Google Sheet ทั้งหมด (Jobs, Users, Settings)
 // ----------------------------------------------------------------------
@@ -88,10 +115,10 @@ function doGet(e) {
     if (jobRows.length > 1) {
       for (let i = 1; i < jobRows.length; i++) {
         const r = jobRows[i];
-        if (!r[0]) continue;
+        if (!r[0] && !r[1] && !r[2] && !r[3]) continue;
         jobs.push({
-          id: String(r[0]),
-          date: r[1] ? (r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1])) : '',
+          id: String(r[0] || ('CW-ROW-' + i)),
+          date: formatDateYMD(r[1]),
           licensePlate: String(r[2] || ''),
           vinNumber: String(r[3] || ''),
           brand: String(r[4] || ''),
@@ -102,8 +129,8 @@ function doGet(e) {
           staffNames: r[9] ? String(r[9]).split(',').map(s => s.trim()).filter(Boolean) : [],
           notes: String(r[10] || ''),
           loggedBy: String(r[11] || ''),
-          createdAt: String(r[12] || new Date().toISOString()),
-          updatedAt: String(r[13] || new Date().toISOString()),
+          createdAt: r[12] instanceof Date ? r[12].toISOString() : String(r[12] || new Date().toISOString()),
+          updatedAt: r[13] instanceof Date ? r[13].toISOString() : String(r[13] || new Date().toISOString()),
           syncedToSheet: true
         });
       }
@@ -376,32 +403,65 @@ export async function pullDataFromGoogleSheet(webAppUrl: string): Promise<SheetP
   }
 
   const json = await res.json();
-  if (json.status !== 'success' || !json.data) {
+  if (json.status === 'error') {
     throw new Error(json.message || 'รูปแบบข้อมูลตอบกลับจาก Google Sheet ไม่ถูกต้อง');
   }
 
-  const rawJobs = json.data.jobs || [];
-  const rawUsers = json.data.users || [];
-  const rawSettings = json.data.settings || null;
+  const rawData = json.data || json;
+  const rawJobs = Array.isArray(rawData.jobs)
+    ? rawData.jobs
+    : Array.isArray(rawData)
+      ? rawData
+      : [];
+  const rawUsers = Array.isArray(rawData.users) ? rawData.users : [];
+  const rawSettings = rawData.settings || null;
 
-  // Format and validate jobs
-  const jobs: CarWashRecord[] = rawJobs.map((j: any) => ({
-    id: String(j.id),
-    date: String(j.date || ''),
-    licensePlate: String(j.licensePlate || ''),
-    vinNumber: String(j.vinNumber || ''),
-    brand: String(j.brand || ''),
-    model: String(j.model || ''),
-    color: String(j.color || ''),
-    washStatus: j.washStatus || 'Detailing New Car Deliver',
-    branch: String(j.branch || ''),
-    staffNames: Array.isArray(j.staffNames) ? j.staffNames : [],
-    notes: String(j.notes || ''),
-    loggedBy: String(j.loggedBy || ''),
-    createdAt: String(j.createdAt || new Date().toISOString()),
-    updatedAt: String(j.updatedAt || new Date().toISOString()),
-    syncedToSheet: true
-  }));
+  // Format and validate jobs (supporting both camelCase and sheet column header names)
+  const jobs: CarWashRecord[] = rawJobs
+    .filter((j: any) => j && typeof j === 'object')
+    .map((j: any, idx: number) => {
+      const rawId = j.id ?? j.ID ?? j['รหัสงาน (ID)'] ?? `CW-ROW-${idx + 1}`;
+      const rawDate = j.date ?? j.Date ?? j['วันที่ (Date)'] ?? j['วันที่'];
+      const rawCreatedAt = j.createdAt ?? j.CreatedAt ?? j['สร้างเมื่อ (CreatedAt)'] ?? new Date().toISOString();
+      const rawUpdatedAt = j.updatedAt ?? j.UpdatedAt ?? j['แก้ไขล่าสุด (UpdatedAt)'] ?? rawCreatedAt;
+      const rawPlate = j.licensePlate ?? j.plate ?? j.Plate ?? j['ทะเบียนรถ (Plate)'] ?? '';
+      const rawVin = j.vinNumber ?? j.vin ?? j.VIN ?? j['เลข VIN (VIN)'] ?? j['เลขตัวถัง (VIN)'] ?? '';
+      const rawBrand = j.brand ?? j.Brand ?? j['ยี่ห้อ (Brand)'] ?? '';
+      const rawModel = j.model ?? j.Model ?? j['รุ่น (Model)'] ?? '';
+      const rawColor = j.color ?? j.Color ?? j['สี (Color)'] ?? '';
+      const rawStatus = j.washStatus ?? j.status ?? j.Status ?? j['สถานะการล้าง (Status)'] ?? j['สถานะการล้าง (Wash Status)'];
+      const rawBranch = j.branch ?? j.Branch ?? j['สาขา (Branch)'] ?? '';
+      const rawStaff = j.staffNames ?? j.staff ?? j.Staff ?? j['พนักงานผู้รับผิดชอบ (Staff)'];
+      const rawNotes = j.notes ?? j.Notes ?? j['หมายเหตุ (Notes)'] ?? '';
+      const rawLoggedBy = j.loggedBy ?? j.LoggedBy ?? j['ผู้บันทึก (Logged By)'] ?? '';
+
+      const cleanPlate = String(rawPlate || '').trim();
+      const cleanVin = String(rawVin || '').trim();
+
+      const staffNames: string[] = Array.isArray(rawStaff)
+        ? rawStaff.map((s: any) => String(s).trim()).filter(Boolean)
+        : typeof rawStaff === 'string' && rawStaff.trim()
+          ? rawStaff.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [];
+
+      return {
+        id: String(rawId),
+        date: normalizeDateToYMD(rawDate, rawCreatedAt, rawId),
+        licensePlate: cleanPlate === '-' ? '' : cleanPlate,
+        vinNumber: cleanVin === '-' ? '' : cleanVin,
+        brand: String(rawBrand || '').trim(),
+        model: String(rawModel || '').trim(),
+        color: String(rawColor || '').trim(),
+        washStatus: normalizeWashStatus(rawStatus),
+        branch: String(rawBranch || '').trim(),
+        staffNames,
+        notes: String(rawNotes || '') === '-' ? '' : String(rawNotes || ''),
+        loggedBy: String(rawLoggedBy || ''),
+        createdAt: String(rawCreatedAt),
+        updatedAt: String(rawUpdatedAt),
+        syncedToSheet: true
+      };
+    });
 
   // Format and validate users
   const users: UserProfile[] = rawUsers.map((u: any) => ({
@@ -443,6 +503,15 @@ export async function pushAllToGoogleSheet(
     throw new Error('กรุณาระบุ URL ของ Google Apps Script Web App');
   }
 
+  const normalizedPayload = {
+    ...data,
+    jobs: (data.jobs || []).map(j => ({
+      ...j,
+      date: normalizeDateToYMD(j.date, j.createdAt, j.id),
+      washStatus: normalizeWashStatus(j.washStatus)
+    }))
+  };
+
   // Send POST as text/plain to avoid CORS OPTIONS preflight issues with Google Apps Script
   const response = await fetch(cleanUrl, {
     method: 'POST',
@@ -452,7 +521,7 @@ export async function pushAllToGoogleSheet(
     },
     body: JSON.stringify({
       action: 'syncAll',
-      payload: data
+      payload: normalizedPayload
     })
   });
 
@@ -475,6 +544,12 @@ export async function autoSyncJobToGoogleSheet(
 ): Promise<void> {
   if (!webAppUrl || !webAppUrl.trim()) return;
 
+  const normalizedJob: CarWashRecord = {
+    ...job,
+    date: normalizeDateToYMD(job.date, job.createdAt, job.id),
+    washStatus: normalizeWashStatus(job.washStatus)
+  };
+
   try {
     await fetch(webAppUrl.trim(), {
       method: 'POST',
@@ -482,7 +557,7 @@ export async function autoSyncJobToGoogleSheet(
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'saveJob',
-        job: job
+        job: normalizedJob
       })
     });
   } catch (err) {
