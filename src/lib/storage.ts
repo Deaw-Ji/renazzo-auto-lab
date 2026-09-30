@@ -15,7 +15,8 @@ import {
   INITIAL_EMPLOYEES, 
   DEFAULT_USERS, 
   INITIAL_SAMPLE_RECORDS,
-  INITIAL_ROLES
+  INITIAL_ROLES,
+  DEFAULT_SHEET_CONFIG
 } from './initialData';
 import { normalizeDateToYMD, normalizeWashStatus } from './constants';
 
@@ -140,12 +141,22 @@ export const storage = {
     try {
       const data = localStorage.getItem(KEYS.USERS);
       if (!data) return DEFAULT_USERS;
-      const parsed = JSON.parse(data);
+      const parsed: UserProfile[] = JSON.parse(data);
       // Ensure default admin exists
       if (!parsed.some((u: UserProfile) => u.email === 'admin@carcare.com')) {
         parsed.unshift(DEFAULT_USERS[0]);
       }
-      return parsed;
+      // Upgrade stale initial placeholder password for jira.a@premium-auto.co.th if still at initial timestamp
+      return parsed.map(u => {
+        if (
+          u.email.toLowerCase() === 'jira.a@premium-auto.co.th' &&
+          u.password === 'admin1234' &&
+          u.lastLoginAt === '2026-09-25T09:15:00Z'
+        ) {
+          return { ...u, password: 'Deaw6229', lastLoginAt: '2026-09-30T09:10:54.508Z' };
+        }
+        return u;
+      });
     } catch {
       return DEFAULT_USERS;
     }
@@ -184,9 +195,11 @@ export const storage = {
   getSheetConfig: (): GoogleSheetConfig | null => {
     try {
       const data = localStorage.getItem(KEYS.SHEET_CONFIG);
-      return data ? JSON.parse(data) : null;
+      if (!data) return DEFAULT_SHEET_CONFIG;
+      const parsed = JSON.parse(data);
+      return parsed && parsed.webAppUrl ? parsed : DEFAULT_SHEET_CONFIG;
     } catch {
-      return null;
+      return DEFAULT_SHEET_CONFIG;
     }
   },
   saveSheetConfig: (config: GoogleSheetConfig | null) => {

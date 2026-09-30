@@ -1,4 +1,16 @@
-import { CarColor, Branch, CarBrand, Employee, CarWashRecord, UserProfile, RoleConfig } from '../types';
+import { CarColor, Branch, CarBrand, Employee, CarWashRecord, UserProfile, RoleConfig, GoogleSheetConfig } from '../types';
+
+export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
+  webAppUrl: 'https://script.google.com/macros/s/AKfycbwP3ru4Nr63fziYZ7ol-4ztcPt6vxtdkmew_mbyO7-wHoAHgZh1k1RkXFK81ZWUMpwFjA/exec',
+  isConnected: true,
+  lastSyncedAt: '2026-09-30T09:27:13.470Z',
+  autoSync: true,
+  tabs: {
+    jobs: 'Jobs',
+    users: 'Users',
+    settings: 'Settings_MasterData'
+  }
+};
 
 export const INITIAL_ROLES: RoleConfig[] = [
   {
@@ -70,11 +82,8 @@ export const INITIAL_COLORS: CarColor[] = [
 ];
 
 export const INITIAL_BRANCHES: Branch[] = [
-  { id: 'b1', name: 'สาขาสำนักงานใหญ่ (Headquarters)', code: 'HQ', isActive: true },
-  { id: 'b2', name: 'สาขาพระราม 9 (Rama 9)', code: 'R9', isActive: true },
-  { id: 'b3', name: 'สาขาสาทร (Sathorn)', code: 'STN', isActive: true },
-  { id: 'b4', name: 'สาขาบางนา (Bangna)', code: 'BN', isActive: true },
-  { id: 'b5', name: 'สาขาริเวอร์ไซด์ (Riverside)', code: 'RS', isActive: true }
+  { id: 'b1', name: 'Renazzo Auto Lab', code: 'PA', isActive: true },
+  { id: 'b2', name: 'Renazzo Motor (Lamborghini Bangkok)', code: 'RM', isActive: true }
 ];
 
 export const INITIAL_BRANDS: CarBrand[] = [
@@ -96,15 +105,10 @@ export const INITIAL_BRANDS: CarBrand[] = [
 ];
 
 export const INITIAL_EMPLOYEES: Employee[] = [
-  { id: 'e1', name: 'สมชาย แจ่มใส', nickname: 'ชาย', isActive: true, branchId: 'b1' },
-  { id: 'e2', name: 'วิชัย ภักดี', nickname: 'ชัย', isActive: true, branchId: 'b1' },
-  { id: 'e3', name: 'อนุรักษ์ มั่นคง', nickname: 'รักษ์', isActive: true, branchId: 'b2' },
-  { id: 'e4', name: 'ธนกฤต เจริญผล', nickname: 'กฤต', isActive: true, branchId: 'b2' },
-  { id: 'e5', name: 'ภาณุพงศ์ ศรีสุข', nickname: 'พงศ์', isActive: true, branchId: 'b3' },
-  { id: 'e6', name: 'นัฐพล วงษ์สุวรรณ', nickname: 'นัฐ', isActive: true, branchId: 'b3' },
-  { id: 'e7', name: 'เอกชัย ชูเกียรติ', nickname: 'เอก', isActive: true, branchId: 'b4' },
-  { id: 'e8', name: 'กิตติศักดิ์ บุญเรือง', nickname: 'ศักดิ์', isActive: true, branchId: 'b4' },
-  { id: 'e9', name: 'ธีรเดช เจริญสุข', nickname: 'เดช', isActive: true, branchId: 'b5' }
+  { id: 'e1', name: 'อกนิษฐ์ ศรีสละ', nickname: 'อ๊ะ', isActive: true, branchId: 'b1' },
+  { id: 'e2', name: 'ธีภพ วงศ์ภัทรภา', nickname: 'ชาย', isActive: true, branchId: 'b1' },
+  { id: 'e3', name: 'จตุรงค์ ทองโกมล', nickname: 'หมี', isActive: true, branchId: 'b1' },
+  { id: 'e4', name: 'ไซ มอน ลิน', nickname: 'ม่อน', isActive: true, branchId: 'b1' }
 ];
 
 export const DEFAULT_USERS: UserProfile[] = [
@@ -115,7 +119,7 @@ export const DEFAULT_USERS: UserProfile[] = [
     role: 'Admin',
     password: 'admin1234',
     createdAt: '2026-01-01T00:00:00Z',
-    lastLoginAt: '2026-09-25T08:00:00Z'
+    lastLoginAt: '2026-09-25T11:55:31.053Z'
   },
   {
     uid: 'user-acc-01',
@@ -140,9 +144,9 @@ export const DEFAULT_USERS: UserProfile[] = [
     email: 'jira.a@premium-auto.co.th',
     displayName: 'Jira A. (System Admin)',
     role: 'Admin',
-    password: 'admin1234',
+    password: 'Deaw6229',
     createdAt: '2026-01-01T00:00:00Z',
-    lastLoginAt: '2026-09-25T09:15:00Z'
+    lastLoginAt: '2026-09-30T09:10:54.508Z'
   }
 ];
 
