@@ -464,16 +464,32 @@ export async function pullDataFromGoogleSheet(webAppUrl: string): Promise<SheetP
       };
     });
 
-  // Format and validate users
-  const users: UserProfile[] = rawUsers.map((u: any) => ({
-    uid: String(u.uid || `user-${Date.now()}`),
-    email: String(u.email || '').toLowerCase().trim(),
-    displayName: String(u.displayName || u.email?.split('@')[0] || 'User'),
-    role: u.role ? String(u.role).trim() : 'Administration Officer',
-    password: u.password || 'admin1234',
-    createdAt: String(u.createdAt || new Date().toISOString()),
-    lastLoginAt: u.lastLoginAt ? String(u.lastLoginAt) : undefined
-  }));
+  // Format and validate users (supporting both camelCase and sheet column header names)
+  const users: UserProfile[] = rawUsers
+    .filter((u: any) => u && typeof u === 'object')
+    .map((u: any, idx: number) => {
+      const rawUid = u.uid ?? u.id ?? u['User ID'] ?? `user-${Date.now()}-${idx}`;
+      const rawEmail = u.email ?? u.Email ?? u['อีเมล (Email)'] ?? u['อีเมล'] ?? '';
+      const cleanEmail = String(rawEmail || '').toLowerCase().trim();
+      const rawDisplayName = u.displayName ?? u.name ?? u.Name ?? u['ชื่อ-นามสกุล (Name)'] ?? u['ชื่อที่แสดง'] ?? cleanEmail.split('@')[0] ?? 'User';
+      const rawRole = u.role ?? u.Role ?? u['สิทธิ์ (Role)'] ?? u['สิทธิ์'] ?? 'Administration Officer';
+      const rawPassword = u.password ?? u.Password ?? u['รหัสผ่าน (Password)'] ?? u['รหัสผ่าน'];
+      const rawCreatedAt = u.createdAt ?? u.CreatedAt ?? u['วันที่สร้าง (CreatedAt)'] ?? new Date().toISOString();
+      const rawLastLogin = u.lastLoginAt ?? u.LastLoginAt ?? u['เข้าสู่ระบบล่าสุด (LastLoginAt)'];
+
+      return {
+        uid: String(rawUid),
+        email: cleanEmail,
+        displayName: String(rawDisplayName || '').trim(),
+        role: String(rawRole || 'Administration Officer').trim(),
+        password: rawPassword !== undefined && rawPassword !== null && String(rawPassword).trim() !== ''
+          ? String(rawPassword).trim()
+          : 'admin1234',
+        createdAt: String(rawCreatedAt),
+        lastLoginAt: rawLastLogin ? String(rawLastLogin) : undefined
+      };
+    })
+    .filter(u => Boolean(u.email));
 
   let settings: MasterSettingsData | null = null;
   if (rawSettings && typeof rawSettings === 'object') {

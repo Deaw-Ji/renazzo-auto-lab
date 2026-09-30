@@ -229,38 +229,144 @@ export default function App() {
     }
   }, [currentUser, canViewDashboard, activeTab]);
 
-  // Automatically fetch / pull existing data from Google Sheet once per session
-  const hasPulledSessionRef = useRef(false);
+  // 1. Cross-device synchronization with central server state (/api/shared-state)
+  const hasSyncedSharedRef = useRef(false);
+  useEffect(() => {
+    const syncWithSharedServer = async () => {
+      if (hasSyncedSharedRef.current) return;
+      hasSyncedSharedRef.current = true;
+
+      const shared = await storage.fetchSharedState();
+      const localSheetConfig = storage.getSheetConfig();
+      const localUsers = storage.getUsers();
+      const localRoles = storage.getRoles();
+      const localRecords = storage.getRecords();
+      const localColors = storage.getColors();
+      const localBranches = storage.getBranches();
+      const localBrands = storage.getBrands();
+      const localEmployees = storage.getEmployees();
+
+      const mergedUsers = storage.mergeUsers(localUsers, shared?.users || []);
+      setUserProfiles(mergedUsers);
+      storage.saveUsers(mergedUsers);
+
+      const resolvedSheetConfig = localSheetConfig?.webAppUrl
+        ? localSheetConfig
+        : (shared?.sheetConfig?.webAppUrl ? shared.sheetConfig : localSheetConfig);
+
+      if (resolvedSheetConfig && resolvedSheetConfig.webAppUrl) {
+        setSheetConfig(resolvedSheetConfig);
+        storage.saveSheetConfig(resolvedSheetConfig);
+      }
+
+      if (shared?.roles?.length) {
+        setRoles(shared.roles);
+        storage.saveRoles(shared.roles);
+      }
+      if (shared?.records?.length && localRecords.length <= 5) {
+        setRecords(shared.records);
+        alignMonthFilterWithJobs(shared.records);
+      }
+      if (shared?.colors?.length) setColors(shared.colors);
+      if (shared?.branches?.length) setBranches(shared.branches);
+      if (shared?.brands?.length) setBrands(shared.brands);
+      if (shared?.employees?.length) setEmployees(shared.employees);
+
+      // Push merged state back to server so any other device opening the app receives it immediately
+      await storage.pushSharedState({
+        sheetConfig: resolvedSheetConfig,
+        users: mergedUsers,
+        roles: shared?.roles?.length ? shared.roles : localRoles,
+        records: shared?.records?.length && localRecords.length <= 5 ? shared.records : localRecords,
+        colors: shared?.colors?.length ? shared.colors : localColors,
+        branches: shared?.branches?.length ? shared.branches : localBranches,
+        brands: shared?.brands?.length ? shared.brands : localBrands,
+        employees: shared?.employees?.length ? shared.employees : localEmployees
+      });
+
+      // Also ensure any custom users from this browser are synced to Google Sheet if connected
+      if (resolvedSheetConfig?.webAppUrl) {
+        autoSyncUsersToGoogleSheet(resolvedSheetConfig.webAppUrl, mergedUsers);
+      }
+    };
+
+    syncWithSharedServer();
+  }, [alignMonthFilterWithJobs]);
+
+  // 2. Automatically fetch / pull existing data from Google Sheet when connected (works on Login screen too!)
+  const lastPulledUrlRef = useRef<string | null>(null);
   useEffect(() => {
     const autoPullFromSheet = async () => {
       if (!sheetConfig?.webAppUrl || !sheetConfig.isConnected) return;
-      if (hasPulledSessionRef.current) return;
-      hasPulledSessionRef.current = true;
+      if (lastPulledUrlRef.current === sheetConfig.webAppUrl) return;
+      lastPulledUrlRef.current = sheetConfig.webAppUrl;
 
       try {
         const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
+        let nextRecords = records;
         if (pullResult.jobs && pullResult.jobs.length > 0) {
+          nextRecords = pullResult.jobs;
           setRecords(pullResult.jobs);
           alignMonthFilterWithJobs(pullResult.jobs);
         }
-        if (pullResult.users && pullResult.users.length > 0) {
-          setUserProfiles(pullResult.users);
+
+        const currentLocalUsers = storage.getUsers();
+        const mergedUsers = storage.mergeUsers(currentLocalUsers, pullResult.users || []);
+        setUserProfiles(mergedUsers);
+        storage.saveUsers(mergedUsers);
+
+        // If local browser had custom users not yet in Google Sheet, sync the merged list back to Sheet
+        if (mergedUsers.length > (pullResult.users?.length || 0)) {
+          autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, mergedUsers);
         }
+
+        let nextColors = colors;
+        let nextBranches = branches;
+        let nextBrands = brands;
+        let nextEmployees = employees;
+        let nextRoles = roles;
+
         if (pullResult.settings) {
-          if (pullResult.settings.colors?.length) setColors(pullResult.settings.colors);
-          if (pullResult.settings.branches?.length) setBranches(pullResult.settings.branches);
-          if (pullResult.settings.brands?.length) setBrands(pullResult.settings.brands);
-          if (pullResult.settings.employees?.length) setEmployees(pullResult.settings.employees);
-          if (pullResult.settings.roles?.length) setRoles(pullResult.settings.roles);
+          if (pullResult.settings.colors?.length) {
+            nextColors = pullResult.settings.colors;
+            setColors(nextColors);
+          }
+          if (pullResult.settings.branches?.length) {
+            nextBranches = pullResult.settings.branches;
+            setBranches(nextBranches);
+          }
+          if (pullResult.settings.brands?.length) {
+            nextBrands = pullResult.settings.brands;
+            setBrands(nextBrands);
+          }
+          if (pullResult.settings.employees?.length) {
+            nextEmployees = pullResult.settings.employees;
+            setEmployees(nextEmployees);
+          }
+          if (pullResult.settings.roles?.length) {
+            nextRoles = pullResult.settings.roles;
+            setRoles(nextRoles);
+          }
         }
+
         storage.setPullInitialized(true);
+        await storage.pushSharedState({
+          sheetConfig,
+          users: mergedUsers,
+          roles: nextRoles,
+          records: nextRecords,
+          colors: nextColors,
+          branches: nextBranches,
+          brands: nextBrands,
+          employees: nextEmployees
+        });
       } catch (err) {
         console.warn('Initial sheet pull notice:', err);
       }
     };
 
     autoPullFromSheet();
-  }, [sheetConfig?.webAppUrl, sheetConfig?.isConnected]);
+  }, [sheetConfig?.webAppUrl, sheetConfig?.isConnected, alignMonthFilterWithJobs]);
 
   // Master Data helper
   const getMasterSettings = useCallback((): MasterSettingsData => {
@@ -280,23 +386,70 @@ export default function App() {
     setIsAuthLoading(true);
     setAuthError(null);
     try {
-      const result = authenticateUser(email, pass, userProfiles);
+      let latestUsers = userProfiles;
+      let latestRoles = roles;
+      let activeConfig = sheetConfig;
+
+      // 1. Fetch latest shared state from server in case another device updated users or sheetConfig
+      const shared = await storage.fetchSharedState();
+      if (shared) {
+        if (shared.users?.length) {
+          latestUsers = storage.mergeUsers(latestUsers, shared.users);
+        }
+        if (shared.roles?.length) {
+          latestRoles = shared.roles;
+          setRoles(shared.roles);
+        }
+        if (!activeConfig?.webAppUrl && shared.sheetConfig?.webAppUrl) {
+          activeConfig = shared.sheetConfig;
+          setSheetConfig(shared.sheetConfig);
+        }
+      }
+
+      // 2. Try authenticating against current merged users
+      let result = authenticateUser(email, pass, latestUsers);
+
+      // 3. If not matched OR if Google Sheet is connected, pull fresh Users directly from Google Sheet
+      if ((!result.success || activeConfig?.webAppUrl) && activeConfig?.webAppUrl) {
+        try {
+          const pullResult = await pullDataFromGoogleSheet(activeConfig.webAppUrl);
+          if (pullResult.users && pullResult.users.length > 0) {
+            latestUsers = storage.mergeUsers(latestUsers, pullResult.users);
+          }
+          if (pullResult.jobs && pullResult.jobs.length > 0) {
+            setRecords(pullResult.jobs);
+            alignMonthFilterWithJobs(pullResult.jobs);
+          }
+          if (pullResult.settings?.roles?.length) {
+            latestRoles = pullResult.settings.roles;
+            setRoles(latestRoles);
+          }
+          result = authenticateUser(email, pass, latestUsers);
+        } catch (pullErr) {
+          console.warn('Live user pull during login warning:', pullErr);
+        }
+      }
+
+      setUserProfiles(latestUsers);
+      storage.saveUsers(latestUsers);
+
       if (result.success && result.user) {
         setCurrentUser(result.user);
         // Update user's last login in user profiles list
-        const updatedUsers = userProfiles.map(u => 
-          u.uid === result.user!.uid ? result.user! : u
+        const updatedUsers = latestUsers.map(u => 
+          u.email.toLowerCase() === result.user!.email.toLowerCase() ? result.user! : u
         );
         setUserProfiles(updatedUsers);
         storage.saveUsers(updatedUsers);
+        storage.pushSharedState({ users: updatedUsers, sheetConfig: activeConfig });
 
         // Auto sync updated login timestamp to Google Sheet in background
-        if (sheetConfig?.webAppUrl) {
-          autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, updatedUsers);
+        if (activeConfig?.webAppUrl) {
+          autoSyncUsersToGoogleSheet(activeConfig.webAppUrl, updatedUsers);
         }
 
         // Set default view based on role permissions
-        const matchedRole = roles.find(r => r.name.toLowerCase() === result.user!.role.toLowerCase());
+        const matchedRole = latestRoles.find(r => r.name.toLowerCase() === result.user!.role.toLowerCase());
         const userCanViewDashboard = matchedRole
           ? matchedRole.permissions.canViewDashboard
           : (result.user.role === 'Admin' || result.user.role === 'Accounting');
@@ -329,6 +482,7 @@ export default function App() {
     const result = changeUserPassword(currentUser.uid, oldPass, newPass, userProfiles);
     if (result.success && result.updatedUsers) {
       setUserProfiles(result.updatedUsers);
+      storage.pushSharedState({ users: result.updatedUsers, replaceUsers: true });
       const updatedCurrent = result.updatedUsers.find(u => u.uid === currentUser.uid);
       if (updatedCurrent) setCurrentUser(updatedCurrent);
 
@@ -347,6 +501,7 @@ export default function App() {
     const res = addNewUser(user, userProfiles);
     if (res.success && res.updatedUsers) {
       setUserProfiles(res.updatedUsers);
+      storage.pushSharedState({ users: res.updatedUsers, replaceUsers: true });
       if (sheetConfig?.webAppUrl) {
         autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
       }
@@ -358,6 +513,7 @@ export default function App() {
     const res = updateUserDetails(uid, details, userProfiles, currentUser?.uid || '');
     if (res.success && res.updatedUsers) {
       setUserProfiles(res.updatedUsers);
+      storage.pushSharedState({ users: res.updatedUsers, replaceUsers: true });
       if (currentUser?.uid === uid) {
         const updatedSelf = res.updatedUsers.find(u => u.uid === uid);
         if (updatedSelf) setCurrentUser(updatedSelf);
@@ -373,6 +529,7 @@ export default function App() {
     const res = adminResetUserPassword(uid, newPass, userProfiles);
     if (res.success && res.updatedUsers) {
       setUserProfiles(res.updatedUsers);
+      storage.pushSharedState({ users: res.updatedUsers, replaceUsers: true });
       if (sheetConfig?.webAppUrl) {
         autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
       }
@@ -384,6 +541,7 @@ export default function App() {
     const res = removeUser(uid, userProfiles, currentUser?.uid || '');
     if (res.success && res.updatedUsers) {
       setUserProfiles(res.updatedUsers);
+      storage.pushSharedState({ users: res.updatedUsers, replaceUsers: true });
       if (sheetConfig?.webAppUrl) {
         autoSyncUsersToGoogleSheet(sheetConfig.webAppUrl, res.updatedUsers);
       }
@@ -401,22 +559,32 @@ export default function App() {
       // 1. FIRST PULL existing data from Google Sheet
       const pullResult = await pullDataFromGoogleSheet(url);
       let pulledJobsCount = 0;
+      let nextRecords = records;
 
       // If sheet already has jobs, use them (don't overwrite!)
       if (pullResult.jobs && pullResult.jobs.length > 0) {
+        nextRecords = pullResult.jobs;
         setRecords(pullResult.jobs);
         alignMonthFilterWithJobs(pullResult.jobs);
         pulledJobsCount = pullResult.jobs.length;
       }
-      if (pullResult.users && pullResult.users.length > 0) {
-        setUserProfiles(pullResult.users);
-      }
+
+      const mergedUsers = storage.mergeUsers(userProfiles, pullResult.users || []);
+      setUserProfiles(mergedUsers);
+      storage.saveUsers(mergedUsers);
+
+      let nextColors = colors;
+      let nextBranches = branches;
+      let nextBrands = brands;
+      let nextEmployees = employees;
+      let nextRoles = roles;
+
       if (pullResult.settings) {
-        const nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
-        const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
-        const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
-        const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
-        const nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
+        nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
+        nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
+        nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
+        nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+        nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
 
         if (pullResult.settings.colors?.length) setColors(nextColors);
         if (pullResult.settings.branches?.length) setBranches(nextBranches);
@@ -441,16 +609,35 @@ export default function App() {
       storage.saveSheetConfig(newConfig);
       storage.setPullInitialized(true);
 
-      // If sheet had zero jobs, sync baseline so sheet is initialized
+      await storage.pushSharedState({
+        sheetConfig: newConfig,
+        users: mergedUsers,
+        roles: nextRoles,
+        records: nextRecords,
+        colors: nextColors,
+        branches: nextBranches,
+        brands: nextBrands,
+        employees: nextEmployees
+      });
+
+      // Ensure merged users and settings are pushed to Google Sheet so Users tab is complete
       if (!pullResult.jobs || pullResult.jobs.length === 0) {
         await pushAllToGoogleSheet(url, {
-          jobs: records,
-          users: userProfiles,
-          settings: getMasterSettings()
+          jobs: nextRecords,
+          users: mergedUsers,
+          settings: {
+            colors: nextColors,
+            branches: nextBranches,
+            brands: nextBrands,
+            employees: nextEmployees,
+            roles: nextRoles
+          }
         });
+      } else {
+        autoSyncUsersToGoogleSheet(url, mergedUsers);
       }
 
-      showToast(`เชื่อมต่อ Google Sheet สำเร็จ! อ่านข้อมูลเดิม ${pulledJobsCount} รายการเรียบร้อย`, 'success');
+      showToast(`เชื่อมต่อ Google Sheet สำเร็จ! อ่านข้อมูลเดิม ${pulledJobsCount} รายการ และซิงค์ผู้ใช้ ${mergedUsers.length} บัญชีเรียบร้อย`, 'success');
     } catch (err: any) {
       console.error('Connect Web App error:', err);
       throw err;
@@ -469,19 +656,29 @@ export default function App() {
     setIsSyncing(true);
     try {
       const pullResult = await pullDataFromGoogleSheet(sheetConfig.webAppUrl);
+      let nextRecords = records;
       if (pullResult.jobs && pullResult.jobs.length > 0) {
+        nextRecords = pullResult.jobs;
         setRecords(pullResult.jobs);
         alignMonthFilterWithJobs(pullResult.jobs);
       }
-      if (pullResult.users && pullResult.users.length > 0) {
-        setUserProfiles(pullResult.users);
-      }
+
+      const mergedUsers = storage.mergeUsers(userProfiles, pullResult.users || []);
+      setUserProfiles(mergedUsers);
+      storage.saveUsers(mergedUsers);
+
+      let nextColors = colors;
+      let nextBranches = branches;
+      let nextBrands = brands;
+      let nextEmployees = employees;
+      let nextRoles = roles;
+
       if (pullResult.settings) {
-        const nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
-        const nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
-        const nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
-        const nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
-        const nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
+        nextColors = pullResult.settings.colors?.length ? pullResult.settings.colors : colors;
+        nextBranches = pullResult.settings.branches?.length ? pullResult.settings.branches : branches;
+        nextBrands = pullResult.settings.brands?.length ? pullResult.settings.brands : brands;
+        nextEmployees = pullResult.settings.employees?.length ? pullResult.settings.employees : employees;
+        nextRoles = pullResult.settings.roles?.length ? pullResult.settings.roles : roles;
 
         if (pullResult.settings.colors?.length) setColors(nextColors);
         if (pullResult.settings.branches?.length) setBranches(nextBranches);
@@ -490,8 +687,21 @@ export default function App() {
         if (pullResult.settings.roles?.length) setRoles(nextRoles);
       }
 
-      setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
-      showToast(`ดึงข้อมูลล่าสุด ${pullResult.jobs?.length || 0} รายการจาก Google Sheet สำเร็จ`, 'success');
+      const updatedConfig = sheetConfig ? { ...sheetConfig, lastSyncedAt: new Date().toISOString() } : null;
+      setSheetConfig(updatedConfig);
+
+      await storage.pushSharedState({
+        sheetConfig: updatedConfig,
+        users: mergedUsers,
+        roles: nextRoles,
+        records: nextRecords,
+        colors: nextColors,
+        branches: nextBranches,
+        brands: nextBrands,
+        employees: nextEmployees
+      });
+
+      showToast(`ดึงข้อมูลล่าสุด ${pullResult.jobs?.length || 0} รายการ และผู้ใช้ ${mergedUsers.length} บัญชีจาก Google Sheet สำเร็จ`, 'success');
     } catch (err: any) {
       showToast('ดึงข้อมูลจาก Google Sheet ล้มเหลว: ' + err.message, 'error');
     } finally {
@@ -514,7 +724,18 @@ export default function App() {
         settings: getMasterSettings()
       });
 
-      setSheetConfig(prev => prev ? { ...prev, lastSyncedAt: new Date().toISOString() } : null);
+      const updatedConfig = sheetConfig ? { ...sheetConfig, lastSyncedAt: new Date().toISOString() } : null;
+      setSheetConfig(updatedConfig);
+      await storage.pushSharedState({
+        sheetConfig: updatedConfig,
+        users: userProfiles,
+        roles,
+        records,
+        colors,
+        branches,
+        brands,
+        employees
+      });
       showToast('ส่งข้อมูลทั้งหมด 3 แท็บ (Jobs, Users, Settings) ไปยัง Google Sheet เรียบร้อยแล้ว', 'success');
     } catch (err: any) {
       showToast('การส่งข้อมูลล้มเหลว: ' + err.message, 'error');
@@ -554,6 +775,7 @@ export default function App() {
 
       const updatedList = records.map(r => r.id === existingId ? updatedRecord : r);
       setRecords(updatedList);
+      storage.pushSharedState({ records: updatedList });
       showToast('อัปเดตข้อมูลรถเรียบร้อยแล้ว', 'success');
 
       // Background Auto-Sync to Google Sheet
@@ -574,6 +796,7 @@ export default function App() {
 
       const updatedList = [newRecord, ...records];
       setRecords(updatedList);
+      storage.pushSharedState({ records: updatedList });
       showToast(`บันทึกข้อมูลรถ ${newRecord.licensePlate || newRecord.vinNumber} สำเร็จ`, 'success');
 
       // Background Auto-Sync to Google Sheet
@@ -606,6 +829,7 @@ export default function App() {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         const updatedList = records.filter(r => r.id !== record.id);
         setRecords(updatedList);
+        storage.pushSharedState({ records: updatedList });
         showToast('ลบรายการเรียบร้อยแล้ว', 'info');
 
         // Background Auto-Sync deletion to Google Sheet
@@ -616,9 +840,10 @@ export default function App() {
     });
   };
 
-  // Master Data Update Handlers (with auto sync to Google Sheet)
+  // Master Data Update Handlers (with auto sync to Google Sheet & Shared Server State)
   const handleUpdateColors = (newColors: CarColor[]) => {
     setColors(newColors);
+    storage.pushSharedState({ colors: newColors });
     const nextSettings = { ...getMasterSettings(), colors: newColors };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
@@ -631,6 +856,7 @@ export default function App() {
 
   const handleUpdateBranches = (newBranches: Branch[]) => {
     setBranches(newBranches);
+    storage.pushSharedState({ branches: newBranches });
     const nextSettings = { ...getMasterSettings(), branches: newBranches };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
@@ -643,6 +869,7 @@ export default function App() {
 
   const handleUpdateBrands = (newBrands: CarBrand[]) => {
     setBrands(newBrands);
+    storage.pushSharedState({ brands: newBrands });
     const nextSettings = { ...getMasterSettings(), brands: newBrands };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
@@ -655,6 +882,7 @@ export default function App() {
 
   const handleUpdateEmployees = (newEmployees: Employee[]) => {
     setEmployees(newEmployees);
+    storage.pushSharedState({ employees: newEmployees });
     const nextSettings = { ...getMasterSettings(), employees: newEmployees };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
@@ -667,6 +895,7 @@ export default function App() {
 
   const handleUpdateUserProfiles = (newUsers: UserProfile[]) => {
     setUserProfiles(newUsers);
+    storage.pushSharedState({ users: newUsers, replaceUsers: true });
     if (currentUser) {
       const updatedCurrent = newUsers.find(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
       if (updatedCurrent) setCurrentUser(updatedCurrent);
@@ -678,6 +907,7 @@ export default function App() {
 
   const handleUpdateRoles = (newRoles: RoleConfig[]) => {
     setRoles(newRoles);
+    storage.pushSharedState({ roles: newRoles });
     const nextSettings = { ...getMasterSettings(), roles: newRoles };
     if (sheetConfig?.webAppUrl) {
       pushAllToGoogleSheet(sheetConfig.webAppUrl, {
@@ -688,14 +918,49 @@ export default function App() {
     }
   };
 
-  // If not logged in, render Login Screen
+  // If not logged in, render Login Screen along with SheetSettingsModal & Toast
   if (!currentUser) {
     return (
-      <LoginScreen
-        onLogin={handleLogin}
-        isLoading={isAuthLoading}
-        errorMessage={authError}
-      />
+      <>
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom duration-200 font-['Sarabun',sans-serif]">
+            <div className={`px-4 py-3 rounded-2xl shadow-lg border text-xs sm:text-sm font-semibold flex items-center gap-2.5 ${
+              toast.type === 'error'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : toast.type === 'info'
+                ? 'bg-slate-900 text-white border-slate-800'
+                : 'bg-emerald-600 text-white border-emerald-500'
+            }`}>
+              {toast.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-300" />
+              )}
+              <span>{toast.message}</span>
+            </div>
+          </div>
+        )}
+        <LoginScreen
+          onLogin={handleLogin}
+          isLoading={isAuthLoading}
+          errorMessage={authError}
+          isSheetConnected={Boolean(sheetConfig?.isConnected && sheetConfig?.webAppUrl)}
+          isSyncing={isSyncing}
+          onSyncUsers={handlePullFromSheet}
+          onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
+        />
+        <SheetSettingsModal
+          isOpen={isSheetSettingsOpen}
+          onClose={() => setIsSheetSettingsOpen(false)}
+          sheetConfig={sheetConfig}
+          onConnectWebApp={handleConnectWebApp}
+          onFullSync={handleManualFullSync}
+          onPullFromSheet={handlePullFromSheet}
+          onExportExcel={handleExportExcel}
+          isSyncing={isSyncing}
+          isAdmin={true}
+        />
+      </>
     );
   }
 

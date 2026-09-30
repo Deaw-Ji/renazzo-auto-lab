@@ -26,8 +26,11 @@ export function authenticateUser(
     return { success: false, message: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' };
   }
 
-  // Check password
-  if (user.password && user.password !== cleanPassword) {
+  // Check password (normalize to string in case Google Sheet returned a numeric password like 123456)
+  const storedPassword = user.password !== undefined && user.password !== null
+    ? String(user.password).trim()
+    : '';
+  if (storedPassword && storedPassword !== cleanPassword) {
     return { success: false, message: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
   }
 

@@ -234,5 +234,84 @@ export const storage = {
     } catch (e) {
       console.error('Failed to save pull initialized flag', e);
     }
+  },
+
+  mergeUsers: (existing: UserProfile[], incoming: UserProfile[]): UserProfile[] => {
+    const map = new Map<string, UserProfile>();
+    for (const u of DEFAULT_USERS) {
+      map.set(u.email.toLowerCase().trim(), {
+        ...u,
+        password: String(u.password || 'admin1234').trim()
+      });
+    }
+    for (const u of existing || []) {
+      if (u && u.email) {
+        map.set(u.email.toLowerCase().trim(), {
+          ...u,
+          email: u.email.toLowerCase().trim(),
+          password: String(u.password || 'admin1234').trim()
+        });
+      }
+    }
+    for (const u of incoming || []) {
+      if (u && u.email) {
+        const key = u.email.toLowerCase().trim();
+        const prev = map.get(key);
+        map.set(key, {
+          ...(prev || {}),
+          ...u,
+          email: key,
+          password: u.password !== undefined && u.password !== null && String(u.password).trim() !== ''
+            ? String(u.password).trim()
+            : (prev?.password || 'admin1234')
+        });
+      }
+    }
+    return Array.from(map.values());
+  },
+
+  fetchSharedState: async (): Promise<{
+    sheetConfig?: GoogleSheetConfig | null;
+    users?: UserProfile[];
+    roles?: RoleConfig[];
+    records?: CarWashRecord[];
+    colors?: CarColor[];
+    branches?: Branch[];
+    brands?: CarBrand[];
+    employees?: Employee[];
+  } | null> => {
+    try {
+      const res = await fetch('/api/shared-state', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json?.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  pushSharedState: async (payload: {
+    sheetConfig?: GoogleSheetConfig | null;
+    users?: UserProfile[];
+    replaceUsers?: boolean;
+    roles?: RoleConfig[];
+    records?: CarWashRecord[];
+    colors?: CarColor[];
+    branches?: Branch[];
+    brands?: CarBrand[];
+    employees?: Employee[];
+  }): Promise<void> => {
+    try {
+      await fetch('/api/shared-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch {
+      // Ignore network errors if offline
+    }
   }
 };
